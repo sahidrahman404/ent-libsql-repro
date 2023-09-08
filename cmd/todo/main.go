@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"log"
 	"net/http"
-	"time"
 
 	"todo"
 	"todo/ent"
@@ -17,8 +15,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/alecthomas/kong"
 
-	entsql "entgo.io/ent/dialect/sql"
-	_ "github.com/libsql/libsql-client-go/libsql"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func main() {
@@ -27,33 +24,7 @@ func main() {
 		Debug bool   `name:"debug" help:"Enable debugging mode."`
 	}
 	kong.Parse(&cli)
-
-	dsn := "libsql://"
-
-	db, err := sql.Open(
-		"libsql",
-		dsn,
-	)
-	if err != nil {
-		log.Fatal("opening ent client", err)
-	}
-
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(25)
-	db.SetConnMaxIdleTime(1 * time.Minute)
-	db.SetConnMaxLifetime(2 * time.Hour)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	err = db.PingContext(ctx)
-	if err != nil {
-		log.Fatal("opening ent client", err)
-	}
-
-	drv := entsql.OpenDB(dialect.SQLite, db)
-	client := ent.NewClient(ent.Driver(drv))
-
+	client, err := ent.Open(dialect.SQLite, "file:ent?mode=memory&cache=shared&_fk=1")
 	if err != nil {
 		log.Fatal("opening ent client", err)
 	}
