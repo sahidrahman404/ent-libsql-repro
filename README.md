@@ -1,24 +1,66 @@
-# ent-graphql-example
+# Reproduction Steps
 
-The code for https://entgo.io/docs/tutorial-setup
+1. Open main.go file in `cmd/todo/main.go` and change the `dsn` variable to your Turso db link
+2. Run the app `go run ./cmd/todo`
+3. Open https://localhost:8081 on your browser
+4. Execute the below mutation to create exercise and muscles group resources
 
-## Installation
-
-```console
-git clone git@github.com:a8m/ent-graphql-example.git
-cd ent-graphql-example
-go run ./cmd/todo/
+```gql
+mutation {
+  createExercise(
+    input: {
+    name: "Plank", 
+    image: "plank image", 
+    createMusclesGroup: [
+    {name: "Abdominal", image: "abdominal image"}, 
+    {name: "Back", image: "back image"}, 
+    {name: "Hip Flexor", image: "hip flexor image"}, 
+    {name: "Posterior (Back) Leg", image: "posterior back leg image"}
+    ]
+    }
+  ) {
+    id
+    name
+    musclesGroups {
+      edges {
+        node {
+          id
+          name
+          image
+        }
+      }
+    }
+  }
+}
 ```
+    
+5. Execute the below query to query exercise resources
 
-Then, open [localhost:8081](http://localhost:8081) to see the GraphQL playground. 
+```gql
+{
+  exercises(first: 1) {
+    edges {
+      node {
+        musclesGroups(first: 1) {
+          edges {
+            node {
+              id
+              name
+            }
+          }
+          pageInfo{
+            hasNextPage
+            endCursor
+          }
+        }
+      }
+    }
+  }
+}
+```
+6. You will get an error message like this 
+`"sql/scan: missing struct field for column: COUNT (*) (COUNT )"`
+after executing the above query
+7. If you want to try the above operations with sqlite3 client, change the branch
+from master to `with-sqlite3-client` branch and redo from the second step
 
-## Report Issues / Proposals
-
-The issue tracker for this repository is located at [ent/ent](https://github.com/ent/ent/issues).
-
-## Join the ent Community
-In order to contribute to `ent`, see the [CONTRIBUTING](https://github.com/ent/ent/blob/master/CONTRIBUTING.md) file for how to go get started.  
-If your company or your product is using `ent`, please let us know by adding yourself to the [ent users page](https://github.com/ent/ent/wiki/ent-users).
-
-## License
-This project is licensed under Apache 2.0 as found in the [LICENSE file](LICENSE).
