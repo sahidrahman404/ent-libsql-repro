@@ -1,3 +1,7 @@
 extend input CreateTodoInput {
   createChildren: [CreateTodoInput!]
 }
+
+extend input CreateExerciseInput {
+  createMusclesGroup: [CreateMusclesGroupInput!]
+}

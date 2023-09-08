@@ -9,9 +9,13 @@ import (
 	"log"
 
 	"todo/ent/migrate"
+	"todo/ent/schema/pksuid"
 
+	"todo/ent/exercise"
+	"todo/ent/musclesgroup"
 	"todo/ent/todo"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
@@ -22,15 +26,17 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// Exercise is the client for interacting with the Exercise builders.
+	Exercise *ExerciseClient
+	// MusclesGroup is the client for interacting with the MusclesGroup builders.
+	MusclesGroup *MusclesGroupClient
 	// Todo is the client for interacting with the Todo builders.
 	Todo *TodoClient
-	// additional fields for node api
-	tables tables
 }
 
 // NewClient creates a new client configured with the given options.
 func NewClient(opts ...Option) *Client {
-	cfg := config{log: log.Println, hooks: &hooks{}}
+	cfg := config{log: log.Println, hooks: &hooks{}, inters: &inters{}}
 	cfg.options(opts...)
 	client := &Client{config: cfg}
 	client.init()
@@ -39,7 +45,58 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.Exercise = NewExerciseClient(c.config)
+	c.MusclesGroup = NewMusclesGroupClient(c.config)
 	c.Todo = NewTodoClient(c.config)
+}
+
+type (
+	// config is the configuration for the client and its builder.
+	config struct {
+		// driver used for executing database requests.
+		driver dialect.Driver
+		// debug enable a debug logging.
+		debug bool
+		// log used for logging on debug mode.
+		log func(...any)
+		// hooks to execute on mutations.
+		hooks *hooks
+		// interceptors to execute on queries.
+		inters *inters
+	}
+	// Option function to configure the client.
+	Option func(*config)
+)
+
+// options applies the options on the config object.
+func (c *config) options(opts ...Option) {
+	for _, opt := range opts {
+		opt(c)
+	}
+	if c.debug {
+		c.driver = dialect.Debug(c.driver, c.log)
+	}
+}
+
+// Debug enables debug logging on the ent.Driver.
+func Debug() Option {
+	return func(c *config) {
+		c.debug = true
+	}
+}
+
+// Log sets the logging function for debug mode.
+func Log(fn func(...any)) Option {
+	return func(c *config) {
+		c.log = fn
+	}
+}
+
+// Driver configures the client driver.
+func Driver(driver dialect.Driver) Option {
+	return func(c *config) {
+		c.driver = driver
+	}
 }
 
 // Open opens a database/sql.DB specified by the driver name and
@@ -71,9 +128,11 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:    ctx,
-		config: cfg,
-		Todo:   NewTodoClient(cfg),
+		ctx:          ctx,
+		config:       cfg,
+		Exercise:     NewExerciseClient(cfg),
+		MusclesGroup: NewMusclesGroupClient(cfg),
+		Todo:         NewTodoClient(cfg),
 	}, nil
 }
 
@@ -91,16 +150,18 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:    ctx,
-		config: cfg,
-		Todo:   NewTodoClient(cfg),
+		ctx:          ctx,
+		config:       cfg,
+		Exercise:     NewExerciseClient(cfg),
+		MusclesGroup: NewMusclesGroupClient(cfg),
+		Todo:         NewTodoClient(cfg),
 	}, nil
 }
 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		Todo.
+//		Exercise.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -122,7 +183,299 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
+	c.Exercise.Use(hooks...)
+	c.MusclesGroup.Use(hooks...)
 	c.Todo.Use(hooks...)
+}
+
+// Intercept adds the query interceptors to all the entity clients.
+// In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
+func (c *Client) Intercept(interceptors ...Interceptor) {
+	c.Exercise.Intercept(interceptors...)
+	c.MusclesGroup.Intercept(interceptors...)
+	c.Todo.Intercept(interceptors...)
+}
+
+// Mutate implements the ent.Mutator interface.
+func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
+	switch m := m.(type) {
+	case *ExerciseMutation:
+		return c.Exercise.mutate(ctx, m)
+	case *MusclesGroupMutation:
+		return c.MusclesGroup.mutate(ctx, m)
+	case *TodoMutation:
+		return c.Todo.mutate(ctx, m)
+	default:
+		return nil, fmt.Errorf("ent: unknown mutation type %T", m)
+	}
+}
+
+// ExerciseClient is a client for the Exercise schema.
+type ExerciseClient struct {
+	config
+}
+
+// NewExerciseClient returns a client for the Exercise from the given config.
+func NewExerciseClient(c config) *ExerciseClient {
+	return &ExerciseClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `exercise.Hooks(f(g(h())))`.
+func (c *ExerciseClient) Use(hooks ...Hook) {
+	c.hooks.Exercise = append(c.hooks.Exercise, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `exercise.Intercept(f(g(h())))`.
+func (c *ExerciseClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Exercise = append(c.inters.Exercise, interceptors...)
+}
+
+// Create returns a builder for creating a Exercise entity.
+func (c *ExerciseClient) Create() *ExerciseCreate {
+	mutation := newExerciseMutation(c.config, OpCreate)
+	return &ExerciseCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Exercise entities.
+func (c *ExerciseClient) CreateBulk(builders ...*ExerciseCreate) *ExerciseCreateBulk {
+	return &ExerciseCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Exercise.
+func (c *ExerciseClient) Update() *ExerciseUpdate {
+	mutation := newExerciseMutation(c.config, OpUpdate)
+	return &ExerciseUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ExerciseClient) UpdateOne(e *Exercise) *ExerciseUpdateOne {
+	mutation := newExerciseMutation(c.config, OpUpdateOne, withExercise(e))
+	return &ExerciseUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ExerciseClient) UpdateOneID(id pksuid.ID) *ExerciseUpdateOne {
+	mutation := newExerciseMutation(c.config, OpUpdateOne, withExerciseID(id))
+	return &ExerciseUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Exercise.
+func (c *ExerciseClient) Delete() *ExerciseDelete {
+	mutation := newExerciseMutation(c.config, OpDelete)
+	return &ExerciseDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ExerciseClient) DeleteOne(e *Exercise) *ExerciseDeleteOne {
+	return c.DeleteOneID(e.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ExerciseClient) DeleteOneID(id pksuid.ID) *ExerciseDeleteOne {
+	builder := c.Delete().Where(exercise.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ExerciseDeleteOne{builder}
+}
+
+// Query returns a query builder for Exercise.
+func (c *ExerciseClient) Query() *ExerciseQuery {
+	return &ExerciseQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeExercise},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Exercise entity by its id.
+func (c *ExerciseClient) Get(ctx context.Context, id pksuid.ID) (*Exercise, error) {
+	return c.Query().Where(exercise.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ExerciseClient) GetX(ctx context.Context, id pksuid.ID) *Exercise {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryMusclesGroups queries the muscles_groups edge of a Exercise.
+func (c *ExerciseClient) QueryMusclesGroups(e *Exercise) *MusclesGroupQuery {
+	query := (&MusclesGroupClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := e.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(exercise.Table, exercise.FieldID, id),
+			sqlgraph.To(musclesgroup.Table, musclesgroup.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, false, exercise.MusclesGroupsTable, exercise.MusclesGroupsPrimaryKey...),
+		)
+		fromV = sqlgraph.Neighbors(e.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ExerciseClient) Hooks() []Hook {
+	return c.hooks.Exercise
+}
+
+// Interceptors returns the client interceptors.
+func (c *ExerciseClient) Interceptors() []Interceptor {
+	return c.inters.Exercise
+}
+
+func (c *ExerciseClient) mutate(ctx context.Context, m *ExerciseMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ExerciseCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ExerciseUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ExerciseUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ExerciseDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Exercise mutation op: %q", m.Op())
+	}
+}
+
+// MusclesGroupClient is a client for the MusclesGroup schema.
+type MusclesGroupClient struct {
+	config
+}
+
+// NewMusclesGroupClient returns a client for the MusclesGroup from the given config.
+func NewMusclesGroupClient(c config) *MusclesGroupClient {
+	return &MusclesGroupClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `musclesgroup.Hooks(f(g(h())))`.
+func (c *MusclesGroupClient) Use(hooks ...Hook) {
+	c.hooks.MusclesGroup = append(c.hooks.MusclesGroup, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `musclesgroup.Intercept(f(g(h())))`.
+func (c *MusclesGroupClient) Intercept(interceptors ...Interceptor) {
+	c.inters.MusclesGroup = append(c.inters.MusclesGroup, interceptors...)
+}
+
+// Create returns a builder for creating a MusclesGroup entity.
+func (c *MusclesGroupClient) Create() *MusclesGroupCreate {
+	mutation := newMusclesGroupMutation(c.config, OpCreate)
+	return &MusclesGroupCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of MusclesGroup entities.
+func (c *MusclesGroupClient) CreateBulk(builders ...*MusclesGroupCreate) *MusclesGroupCreateBulk {
+	return &MusclesGroupCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for MusclesGroup.
+func (c *MusclesGroupClient) Update() *MusclesGroupUpdate {
+	mutation := newMusclesGroupMutation(c.config, OpUpdate)
+	return &MusclesGroupUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *MusclesGroupClient) UpdateOne(mg *MusclesGroup) *MusclesGroupUpdateOne {
+	mutation := newMusclesGroupMutation(c.config, OpUpdateOne, withMusclesGroup(mg))
+	return &MusclesGroupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *MusclesGroupClient) UpdateOneID(id pksuid.ID) *MusclesGroupUpdateOne {
+	mutation := newMusclesGroupMutation(c.config, OpUpdateOne, withMusclesGroupID(id))
+	return &MusclesGroupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for MusclesGroup.
+func (c *MusclesGroupClient) Delete() *MusclesGroupDelete {
+	mutation := newMusclesGroupMutation(c.config, OpDelete)
+	return &MusclesGroupDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *MusclesGroupClient) DeleteOne(mg *MusclesGroup) *MusclesGroupDeleteOne {
+	return c.DeleteOneID(mg.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *MusclesGroupClient) DeleteOneID(id pksuid.ID) *MusclesGroupDeleteOne {
+	builder := c.Delete().Where(musclesgroup.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &MusclesGroupDeleteOne{builder}
+}
+
+// Query returns a query builder for MusclesGroup.
+func (c *MusclesGroupClient) Query() *MusclesGroupQuery {
+	return &MusclesGroupQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeMusclesGroup},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a MusclesGroup entity by its id.
+func (c *MusclesGroupClient) Get(ctx context.Context, id pksuid.ID) (*MusclesGroup, error) {
+	return c.Query().Where(musclesgroup.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *MusclesGroupClient) GetX(ctx context.Context, id pksuid.ID) *MusclesGroup {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryExercises queries the exercises edge of a MusclesGroup.
+func (c *MusclesGroupClient) QueryExercises(mg *MusclesGroup) *ExerciseQuery {
+	query := (&ExerciseClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := mg.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(musclesgroup.Table, musclesgroup.FieldID, id),
+			sqlgraph.To(exercise.Table, exercise.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, musclesgroup.ExercisesTable, musclesgroup.ExercisesPrimaryKey...),
+		)
+		fromV = sqlgraph.Neighbors(mg.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *MusclesGroupClient) Hooks() []Hook {
+	return c.hooks.MusclesGroup
+}
+
+// Interceptors returns the client interceptors.
+func (c *MusclesGroupClient) Interceptors() []Interceptor {
+	return c.inters.MusclesGroup
+}
+
+func (c *MusclesGroupClient) mutate(ctx context.Context, m *MusclesGroupMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&MusclesGroupCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&MusclesGroupUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&MusclesGroupUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&MusclesGroupDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown MusclesGroup mutation op: %q", m.Op())
+	}
 }
 
 // TodoClient is a client for the Todo schema.
@@ -139,6 +492,12 @@ func NewTodoClient(c config) *TodoClient {
 // A call to `Use(f, g, h)` equals to `todo.Hooks(f(g(h())))`.
 func (c *TodoClient) Use(hooks ...Hook) {
 	c.hooks.Todo = append(c.hooks.Todo, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `todo.Intercept(f(g(h())))`.
+func (c *TodoClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Todo = append(c.inters.Todo, interceptors...)
 }
 
 // Create returns a builder for creating a Todo entity.
@@ -165,7 +524,7 @@ func (c *TodoClient) UpdateOne(t *Todo) *TodoUpdateOne {
 }
 
 // UpdateOneID returns an update builder for the given id.
-func (c *TodoClient) UpdateOneID(id int) *TodoUpdateOne {
+func (c *TodoClient) UpdateOneID(id pksuid.ID) *TodoUpdateOne {
 	mutation := newTodoMutation(c.config, OpUpdateOne, withTodoID(id))
 	return &TodoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
@@ -181,8 +540,8 @@ func (c *TodoClient) DeleteOne(t *Todo) *TodoDeleteOne {
 	return c.DeleteOneID(t.ID)
 }
 
-// DeleteOne returns a builder for deleting the given entity by its id.
-func (c *TodoClient) DeleteOneID(id int) *TodoDeleteOne {
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TodoClient) DeleteOneID(id pksuid.ID) *TodoDeleteOne {
 	builder := c.Delete().Where(todo.ID(id))
 	builder.mutation.id = &id
 	builder.mutation.op = OpDeleteOne
@@ -193,16 +552,18 @@ func (c *TodoClient) DeleteOneID(id int) *TodoDeleteOne {
 func (c *TodoClient) Query() *TodoQuery {
 	return &TodoQuery{
 		config: c.config,
+		ctx:    &QueryContext{Type: TypeTodo},
+		inters: c.Interceptors(),
 	}
 }
 
 // Get returns a Todo entity by its id.
-func (c *TodoClient) Get(ctx context.Context, id int) (*Todo, error) {
+func (c *TodoClient) Get(ctx context.Context, id pksuid.ID) (*Todo, error) {
 	return c.Query().Where(todo.ID(id)).Only(ctx)
 }
 
 // GetX is like Get, but panics if an error occurs.
-func (c *TodoClient) GetX(ctx context.Context, id int) *Todo {
+func (c *TodoClient) GetX(ctx context.Context, id pksuid.ID) *Todo {
 	obj, err := c.Get(ctx, id)
 	if err != nil {
 		panic(err)
@@ -212,8 +573,8 @@ func (c *TodoClient) GetX(ctx context.Context, id int) *Todo {
 
 // QueryChildren queries the children edge of a Todo.
 func (c *TodoClient) QueryChildren(t *Todo) *TodoQuery {
-	query := &TodoQuery{config: c.config}
-	query.path = func(ctx context.Context) (fromV *sql.Selector, _ error) {
+	query := (&TodoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
 		id := t.ID
 		step := sqlgraph.NewStep(
 			sqlgraph.From(todo.Table, todo.FieldID, id),
@@ -228,8 +589,8 @@ func (c *TodoClient) QueryChildren(t *Todo) *TodoQuery {
 
 // QueryParent queries the parent edge of a Todo.
 func (c *TodoClient) QueryParent(t *Todo) *TodoQuery {
-	query := &TodoQuery{config: c.config}
-	query.path = func(ctx context.Context) (fromV *sql.Selector, _ error) {
+	query := (&TodoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
 		id := t.ID
 		step := sqlgraph.NewStep(
 			sqlgraph.From(todo.Table, todo.FieldID, id),
@@ -246,3 +607,33 @@ func (c *TodoClient) QueryParent(t *Todo) *TodoQuery {
 func (c *TodoClient) Hooks() []Hook {
 	return c.hooks.Todo
 }
+
+// Interceptors returns the client interceptors.
+func (c *TodoClient) Interceptors() []Interceptor {
+	return c.inters.Todo
+}
+
+func (c *TodoClient) mutate(ctx context.Context, m *TodoMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TodoCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TodoUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TodoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TodoDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Todo mutation op: %q", m.Op())
+	}
+}
+
+// hooks and interceptors per client, for fast access.
+type (
+	hooks struct {
+		Exercise, MusclesGroup, Todo []ent.Hook
+	}
+	inters struct {
+		Exercise, MusclesGroup, Todo []ent.Interceptor
+	}
+)

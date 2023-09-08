@@ -6,5 +6,11 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// Exercise is the predicate function for exercise builders.
+type Exercise func(*sql.Selector)
+
+// MusclesGroup is the predicate function for musclesgroup builders.
+type MusclesGroup func(*sql.Selector)
+
 // Todo is the predicate function for todo builders.
 type Todo func(*sql.Selector)

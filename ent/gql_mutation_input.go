@@ -4,8 +4,151 @@ package ent
 
 import (
 	"time"
+	"todo/ent/schema/pksuid"
 	"todo/ent/todo"
 )
+
+// CreateExerciseInput represents a mutation input for creating exercises.
+type CreateExerciseInput struct {
+	Name            string
+	Image           *string
+	HowTo           *string
+	MusclesGroupIDs []pksuid.ID
+}
+
+// Mutate applies the CreateExerciseInput on the ExerciseMutation builder.
+func (i *CreateExerciseInput) Mutate(m *ExerciseMutation) {
+	m.SetName(i.Name)
+	if v := i.Image; v != nil {
+		m.SetImage(*v)
+	}
+	if v := i.HowTo; v != nil {
+		m.SetHowTo(*v)
+	}
+	if v := i.MusclesGroupIDs; len(v) > 0 {
+		m.AddMusclesGroupIDs(v...)
+	}
+}
+
+// SetInput applies the change-set in the CreateExerciseInput on the ExerciseCreate builder.
+func (c *ExerciseCreate) SetInput(i CreateExerciseInput) *ExerciseCreate {
+	i.Mutate(c.Mutation())
+	return c
+}
+
+// UpdateExerciseInput represents a mutation input for updating exercises.
+type UpdateExerciseInput struct {
+	Name                  *string
+	ClearImage            bool
+	Image                 *string
+	ClearHowTo            bool
+	HowTo                 *string
+	ClearMusclesGroups    bool
+	AddMusclesGroupIDs    []pksuid.ID
+	RemoveMusclesGroupIDs []pksuid.ID
+}
+
+// Mutate applies the UpdateExerciseInput on the ExerciseMutation builder.
+func (i *UpdateExerciseInput) Mutate(m *ExerciseMutation) {
+	if v := i.Name; v != nil {
+		m.SetName(*v)
+	}
+	if i.ClearImage {
+		m.ClearImage()
+	}
+	if v := i.Image; v != nil {
+		m.SetImage(*v)
+	}
+	if i.ClearHowTo {
+		m.ClearHowTo()
+	}
+	if v := i.HowTo; v != nil {
+		m.SetHowTo(*v)
+	}
+	if i.ClearMusclesGroups {
+		m.ClearMusclesGroups()
+	}
+	if v := i.AddMusclesGroupIDs; len(v) > 0 {
+		m.AddMusclesGroupIDs(v...)
+	}
+	if v := i.RemoveMusclesGroupIDs; len(v) > 0 {
+		m.RemoveMusclesGroupIDs(v...)
+	}
+}
+
+// SetInput applies the change-set in the UpdateExerciseInput on the ExerciseUpdate builder.
+func (c *ExerciseUpdate) SetInput(i UpdateExerciseInput) *ExerciseUpdate {
+	i.Mutate(c.Mutation())
+	return c
+}
+
+// SetInput applies the change-set in the UpdateExerciseInput on the ExerciseUpdateOne builder.
+func (c *ExerciseUpdateOne) SetInput(i UpdateExerciseInput) *ExerciseUpdateOne {
+	i.Mutate(c.Mutation())
+	return c
+}
+
+// CreateMusclesGroupInput represents a mutation input for creating musclesgroups.
+type CreateMusclesGroupInput struct {
+	Name        string
+	Image       string
+	ExerciseIDs []pksuid.ID
+}
+
+// Mutate applies the CreateMusclesGroupInput on the MusclesGroupMutation builder.
+func (i *CreateMusclesGroupInput) Mutate(m *MusclesGroupMutation) {
+	m.SetName(i.Name)
+	m.SetImage(i.Image)
+	if v := i.ExerciseIDs; len(v) > 0 {
+		m.AddExerciseIDs(v...)
+	}
+}
+
+// SetInput applies the change-set in the CreateMusclesGroupInput on the MusclesGroupCreate builder.
+func (c *MusclesGroupCreate) SetInput(i CreateMusclesGroupInput) *MusclesGroupCreate {
+	i.Mutate(c.Mutation())
+	return c
+}
+
+// UpdateMusclesGroupInput represents a mutation input for updating musclesgroups.
+type UpdateMusclesGroupInput struct {
+	Name              *string
+	Image             *string
+	ClearExercises    bool
+	AddExerciseIDs    []pksuid.ID
+	RemoveExerciseIDs []pksuid.ID
+}
+
+// Mutate applies the UpdateMusclesGroupInput on the MusclesGroupMutation builder.
+func (i *UpdateMusclesGroupInput) Mutate(m *MusclesGroupMutation) {
+	if v := i.Name; v != nil {
+		m.SetName(*v)
+	}
+	if v := i.Image; v != nil {
+		m.SetImage(*v)
+	}
+	if i.ClearExercises {
+		m.ClearExercises()
+	}
+	if v := i.AddExerciseIDs; len(v) > 0 {
+		m.AddExerciseIDs(v...)
+	}
+	if v := i.RemoveExerciseIDs; len(v) > 0 {
+		m.RemoveExerciseIDs(v...)
+	}
+}
+
+// SetInput applies the change-set in the UpdateMusclesGroupInput on the MusclesGroupUpdate builder.
+func (c *MusclesGroupUpdate) SetInput(i UpdateMusclesGroupInput) *MusclesGroupUpdate {
+	i.Mutate(c.Mutation())
+	return c
+}
+
+// SetInput applies the change-set in the UpdateMusclesGroupInput on the MusclesGroupUpdateOne builder.
+func (c *MusclesGroupUpdateOne) SetInput(i UpdateMusclesGroupInput) *MusclesGroupUpdateOne {
+	i.Mutate(c.Mutation())
+	return c
+}
 
 // CreateTodoInput represents a mutation input for creating todos.
 type CreateTodoInput struct {
@@ -13,8 +156,8 @@ type CreateTodoInput struct {
 	CreatedAt *time.Time
 	Status    *todo.Status
 	Priority  *int
-	ChildIDs  []int
-	ParentID  *int
+	ChildIDs  []pksuid.ID
+	ParentID  *pksuid.ID
 }
 
 // Mutate applies the CreateTodoInput on the TodoMutation builder.
@@ -48,10 +191,11 @@ type UpdateTodoInput struct {
 	Text           *string
 	Status         *todo.Status
 	Priority       *int
-	AddChildIDs    []int
-	RemoveChildIDs []int
+	ClearChildren  bool
+	AddChildIDs    []pksuid.ID
+	RemoveChildIDs []pksuid.ID
 	ClearParent    bool
-	ParentID       *int
+	ParentID       *pksuid.ID
 }
 
 // Mutate applies the UpdateTodoInput on the TodoMutation builder.
@@ -64,6 +208,9 @@ func (i *UpdateTodoInput) Mutate(m *TodoMutation) {
 	}
 	if v := i.Priority; v != nil {
 		m.SetPriority(*v)
+	}
+	if i.ClearChildren {
+		m.ClearChildren()
 	}
 	if v := i.AddChildIDs; len(v) > 0 {
 		m.AddChildIDs(v...)

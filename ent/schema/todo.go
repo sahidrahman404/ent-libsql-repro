@@ -2,6 +2,7 @@ package schema
 
 import (
 	"time"
+	"todo/ent/schema/pksuid"
 
 	"entgo.io/contrib/entgql"
 	"entgo.io/ent/schema"
@@ -21,29 +22,21 @@ func (Todo) Fields() []ent.Field {
 	return []ent.Field{
 		field.Text("text").
 			NotEmpty().
-			Annotations(
-				entgql.OrderField("TEXT"),
-			),
+			Annotations(),
 		field.Time("created_at").
 			Default(time.Now).
 			Immutable().
-			Annotations(
-				entgql.OrderField("CREATED_AT"),
-			),
+			Annotations(),
 		field.Enum("status").
 			NamedValues(
 				"InProgress", "IN_PROGRESS",
 				"Completed", "COMPLETED",
 			).
 			Default("IN_PROGRESS").
-			Annotations(
-				entgql.OrderField("STATUS"),
-			),
+			Annotations(),
 		field.Int("priority").
 			Default(0).
-			Annotations(
-				entgql.OrderField("PRIORITY"),
-			),
+			Annotations(),
 	}
 }
 
@@ -52,7 +45,7 @@ func (Todo) Edges() []ent.Edge {
 	return []ent.Edge{
 		edge.To("parent", Todo.Type).
 			Unique().
-			From("children"),
+			From("children").Annotations(entgql.RelayConnection()),
 	}
 }
 
@@ -61,5 +54,11 @@ func (Todo) Annotations() []schema.Annotation {
 		entgql.RelayConnection(),
 		entgql.QueryField(),
 		entgql.Mutations(entgql.MutationCreate(), entgql.MutationUpdate()),
+	}
+}
+
+func (Todo) Mixin() []ent.Mixin {
+	return []ent.Mixin{
+		pksuid.MixinWithPrefix("TD"),
 	}
 }

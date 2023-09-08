@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"todo/ent/schema/pksuid"
 	"todo/ent/todo"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 )
 
@@ -15,7 +17,7 @@ import (
 type Todo struct {
 	config `json:"-"`
 	// ID of the ent.
-	ID int `json:"id,omitempty"`
+	ID pksuid.ID `json:"id,omitempty"`
 	// Text holds the value of the "text" field.
 	Text string `json:"text,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
@@ -26,8 +28,9 @@ type Todo struct {
 	Priority int `json:"priority,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the TodoQuery when eager-loading is set.
-	Edges       TodoEdges `json:"edges"`
-	todo_parent *int
+	Edges        TodoEdges `json:"edges"`
+	todo_parent  *pksuid.ID
+	selectValues sql.SelectValues
 }
 
 // TodoEdges holds the relations/edges for other nodes in the graph.
@@ -72,16 +75,18 @@ func (*Todo) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case todo.FieldID, todo.FieldPriority:
+		case todo.FieldID:
+			values[i] = new(pksuid.ID)
+		case todo.FieldPriority:
 			values[i] = new(sql.NullInt64)
 		case todo.FieldText, todo.FieldStatus:
 			values[i] = new(sql.NullString)
 		case todo.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
 		case todo.ForeignKeys[0]: // todo_parent
-			values[i] = new(sql.NullInt64)
+			values[i] = &sql.NullScanner{S: new(pksuid.ID)}
 		default:
-			return nil, fmt.Errorf("unexpected column %q for type Todo", columns[i])
+			values[i] = new(sql.UnknownType)
 		}
 	}
 	return values, nil
@@ -96,11 +101,11 @@ func (t *Todo) assignValues(columns []string, values []any) error {
 	for i := range columns {
 		switch columns[i] {
 		case todo.FieldID:
-			value, ok := values[i].(*sql.NullInt64)
-			if !ok {
-				return fmt.Errorf("unexpected type %T for field id", value)
+			if value, ok := values[i].(*pksuid.ID); !ok {
+				return fmt.Errorf("unexpected type %T for field id", values[i])
+			} else if value != nil {
+				t.ID = *value
 			}
-			t.ID = int(value.Int64)
 		case todo.FieldText:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field text", values[i])
@@ -126,32 +131,40 @@ func (t *Todo) assignValues(columns []string, values []any) error {
 				t.Priority = int(value.Int64)
 			}
 		case todo.ForeignKeys[0]:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for edge-field todo_parent", value)
+			if value, ok := values[i].(*sql.NullScanner); !ok {
+				return fmt.Errorf("unexpected type %T for field todo_parent", values[i])
 			} else if value.Valid {
-				t.todo_parent = new(int)
-				*t.todo_parent = int(value.Int64)
+				t.todo_parent = new(pksuid.ID)
+				*t.todo_parent = *value.S.(*pksuid.ID)
 			}
+		default:
+			t.selectValues.Set(columns[i], values[i])
 		}
 	}
 	return nil
 }
 
+// Value returns the ent.Value that was dynamically selected and assigned to the Todo.
+// This includes values selected through modifiers, order, etc.
+func (t *Todo) Value(name string) (ent.Value, error) {
+	return t.selectValues.Get(name)
+}
+
 // QueryChildren queries the "children" edge of the Todo entity.
 func (t *Todo) QueryChildren() *TodoQuery {
-	return (&TodoClient{config: t.config}).QueryChildren(t)
+	return NewTodoClient(t.config).QueryChildren(t)
 }
 
 // QueryParent queries the "parent" edge of the Todo entity.
 func (t *Todo) QueryParent() *TodoQuery {
-	return (&TodoClient{config: t.config}).QueryParent(t)
+	return NewTodoClient(t.config).QueryParent(t)
 }
 
 // Update returns a builder for updating this Todo.
 // Note that you need to call Todo.Unwrap() before calling this method if this Todo
 // was returned from a transaction, and the transaction was committed or rolled back.
 func (t *Todo) Update() *TodoUpdateOne {
-	return (&TodoClient{config: t.config}).UpdateOne(t)
+	return NewTodoClient(t.config).UpdateOne(t)
 }
 
 // Unwrap unwraps the Todo entity that was returned from a transaction after it was closed,
@@ -211,9 +224,3 @@ func (t *Todo) appendNamedChildren(name string, edges ...*Todo) {
 
 // Todos is a parsable slice of Todo.
 type Todos []*Todo
-
-func (t Todos) config(cfg config) {
-	for _i := range t {
-		t[_i].config = cfg
-	}
-}

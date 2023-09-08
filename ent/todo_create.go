@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"todo/ent/schema/pksuid"
 	"todo/ent/todo"
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
@@ -68,15 +69,29 @@ func (tc *TodoCreate) SetNillablePriority(i *int) *TodoCreate {
 	return tc
 }
 
+// SetID sets the "id" field.
+func (tc *TodoCreate) SetID(pk pksuid.ID) *TodoCreate {
+	tc.mutation.SetID(pk)
+	return tc
+}
+
+// SetNillableID sets the "id" field if the given value is not nil.
+func (tc *TodoCreate) SetNillableID(pk *pksuid.ID) *TodoCreate {
+	if pk != nil {
+		tc.SetID(*pk)
+	}
+	return tc
+}
+
 // AddChildIDs adds the "children" edge to the Todo entity by IDs.
-func (tc *TodoCreate) AddChildIDs(ids ...int) *TodoCreate {
+func (tc *TodoCreate) AddChildIDs(ids ...pksuid.ID) *TodoCreate {
 	tc.mutation.AddChildIDs(ids...)
 	return tc
 }
 
 // AddChildren adds the "children" edges to the Todo entity.
 func (tc *TodoCreate) AddChildren(t ...*Todo) *TodoCreate {
-	ids := make([]int, len(t))
+	ids := make([]pksuid.ID, len(t))
 	for i := range t {
 		ids[i] = t[i].ID
 	}
@@ -84,13 +99,13 @@ func (tc *TodoCreate) AddChildren(t ...*Todo) *TodoCreate {
 }
 
 // SetParentID sets the "parent" edge to the Todo entity by ID.
-func (tc *TodoCreate) SetParentID(id int) *TodoCreate {
+func (tc *TodoCreate) SetParentID(id pksuid.ID) *TodoCreate {
 	tc.mutation.SetParentID(id)
 	return tc
 }
 
 // SetNillableParentID sets the "parent" edge to the Todo entity by ID if the given value is not nil.
-func (tc *TodoCreate) SetNillableParentID(id *int) *TodoCreate {
+func (tc *TodoCreate) SetNillableParentID(id *pksuid.ID) *TodoCreate {
 	if id != nil {
 		tc = tc.SetParentID(*id)
 	}
@@ -109,50 +124,8 @@ func (tc *TodoCreate) Mutation() *TodoMutation {
 
 // Save creates the Todo in the database.
 func (tc *TodoCreate) Save(ctx context.Context) (*Todo, error) {
-	var (
-		err  error
-		node *Todo
-	)
 	tc.defaults()
-	if len(tc.hooks) == 0 {
-		if err = tc.check(); err != nil {
-			return nil, err
-		}
-		node, err = tc.sqlSave(ctx)
-	} else {
-		var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
-			mutation, ok := m.(*TodoMutation)
-			if !ok {
-				return nil, fmt.Errorf("unexpected mutation type %T", m)
-			}
-			if err = tc.check(); err != nil {
-				return nil, err
-			}
-			tc.mutation = mutation
-			if node, err = tc.sqlSave(ctx); err != nil {
-				return nil, err
-			}
-			mutation.id = &node.ID
-			mutation.done = true
-			return node, err
-		})
-		for i := len(tc.hooks) - 1; i >= 0; i-- {
-			if tc.hooks[i] == nil {
-				return nil, fmt.Errorf("ent: uninitialized hook (forgotten import ent/runtime?)")
-			}
-			mut = tc.hooks[i](mut)
-		}
-		v, err := mut.Mutate(ctx, tc.mutation)
-		if err != nil {
-			return nil, err
-		}
-		nv, ok := v.(*Todo)
-		if !ok {
-			return nil, fmt.Errorf("unexpected node type %T returned from TodoMutation", v)
-		}
-		node = nv
-	}
-	return node, err
+	return withHooks(ctx, tc.sqlSave, tc.mutation, tc.hooks)
 }
 
 // SaveX calls Save and panics if Save returns an error.
@@ -191,6 +164,10 @@ func (tc *TodoCreate) defaults() {
 		v := todo.DefaultPriority
 		tc.mutation.SetPriority(v)
 	}
+	if _, ok := tc.mutation.ID(); !ok {
+		v := todo.DefaultID()
+		tc.mutation.SetID(v)
+	}
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -221,6 +198,9 @@ func (tc *TodoCreate) check() error {
 }
 
 func (tc *TodoCreate) sqlSave(ctx context.Context) (*Todo, error) {
+	if err := tc.check(); err != nil {
+		return nil, err
+	}
 	_node, _spec := tc.createSpec()
 	if err := sqlgraph.CreateNode(ctx, tc.driver, _spec); err != nil {
 		if sqlgraph.IsConstraintError(err) {
@@ -228,52 +208,41 @@ func (tc *TodoCreate) sqlSave(ctx context.Context) (*Todo, error) {
 		}
 		return nil, err
 	}
-	id := _spec.ID.Value.(int64)
-	_node.ID = int(id)
+	if _spec.ID.Value != nil {
+		if id, ok := _spec.ID.Value.(*pksuid.ID); ok {
+			_node.ID = *id
+		} else if err := _node.ID.Scan(_spec.ID.Value); err != nil {
+			return nil, err
+		}
+	}
+	tc.mutation.id = &_node.ID
+	tc.mutation.done = true
 	return _node, nil
 }
 
 func (tc *TodoCreate) createSpec() (*Todo, *sqlgraph.CreateSpec) {
 	var (
 		_node = &Todo{config: tc.config}
-		_spec = &sqlgraph.CreateSpec{
-			Table: todo.Table,
-			ID: &sqlgraph.FieldSpec{
-				Type:   field.TypeInt,
-				Column: todo.FieldID,
-			},
-		}
+		_spec = sqlgraph.NewCreateSpec(todo.Table, sqlgraph.NewFieldSpec(todo.FieldID, field.TypeString))
 	)
+	if id, ok := tc.mutation.ID(); ok {
+		_node.ID = id
+		_spec.ID.Value = &id
+	}
 	if value, ok := tc.mutation.Text(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeString,
-			Value:  value,
-			Column: todo.FieldText,
-		})
+		_spec.SetField(todo.FieldText, field.TypeString, value)
 		_node.Text = value
 	}
 	if value, ok := tc.mutation.CreatedAt(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeTime,
-			Value:  value,
-			Column: todo.FieldCreatedAt,
-		})
+		_spec.SetField(todo.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
 	}
 	if value, ok := tc.mutation.Status(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeEnum,
-			Value:  value,
-			Column: todo.FieldStatus,
-		})
+		_spec.SetField(todo.FieldStatus, field.TypeEnum, value)
 		_node.Status = value
 	}
 	if value, ok := tc.mutation.Priority(); ok {
-		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
-			Type:   field.TypeInt,
-			Value:  value,
-			Column: todo.FieldPriority,
-		})
+		_spec.SetField(todo.FieldPriority, field.TypeInt, value)
 		_node.Priority = value
 	}
 	if nodes := tc.mutation.ChildrenIDs(); len(nodes) > 0 {
@@ -284,10 +253,7 @@ func (tc *TodoCreate) createSpec() (*Todo, *sqlgraph.CreateSpec) {
 			Columns: []string{todo.ChildrenColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
-				IDSpec: &sqlgraph.FieldSpec{
-					Type:   field.TypeInt,
-					Column: todo.FieldID,
-				},
+				IDSpec: sqlgraph.NewFieldSpec(todo.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {
@@ -303,10 +269,7 @@ func (tc *TodoCreate) createSpec() (*Todo, *sqlgraph.CreateSpec) {
 			Columns: []string{todo.ParentColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
-				IDSpec: &sqlgraph.FieldSpec{
-					Type:   field.TypeInt,
-					Column: todo.FieldID,
-				},
+				IDSpec: sqlgraph.NewFieldSpec(todo.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {
@@ -342,8 +305,8 @@ func (tcb *TodoCreateBulk) Save(ctx context.Context) ([]*Todo, error) {
 					return nil, err
 				}
 				builder.mutation = mutation
-				nodes[i], specs[i] = builder.createSpec()
 				var err error
+				nodes[i], specs[i] = builder.createSpec()
 				if i < len(mutators)-1 {
 					_, err = mutators[i+1].Mutate(root, tcb.builders[i+1].mutation)
 				} else {
@@ -359,10 +322,6 @@ func (tcb *TodoCreateBulk) Save(ctx context.Context) ([]*Todo, error) {
 					return nil, err
 				}
 				mutation.id = &nodes[i].ID
-				if specs[i].ID.Value != nil {
-					id := specs[i].ID.Value.(int64)
-					nodes[i].ID = int(id)
-				}
 				mutation.done = true
 				return nodes[i], nil
 			})

@@ -4,10 +4,386 @@ package ent
 
 import (
 	"context"
+	"database/sql/driver"
+	"fmt"
+	"todo/ent/exercise"
+	"todo/ent/musclesgroup"
+	"todo/ent/schema/pksuid"
+	"todo/ent/todo"
 
+	"entgo.io/contrib/entgql"
 	"entgo.io/ent/dialect/sql"
 	"github.com/99designs/gqlgen/graphql"
 )
+
+// CollectFields tells the query-builder to eagerly load connected nodes by resolver context.
+func (e *ExerciseQuery) CollectFields(ctx context.Context, satisfies ...string) (*ExerciseQuery, error) {
+	fc := graphql.GetFieldContext(ctx)
+	if fc == nil {
+		return e, nil
+	}
+	if err := e.collectField(ctx, graphql.GetOperationContext(ctx), fc.Field, nil, satisfies...); err != nil {
+		return nil, err
+	}
+	return e, nil
+}
+
+func (e *ExerciseQuery) collectField(ctx context.Context, opCtx *graphql.OperationContext, collected graphql.CollectedField, path []string, satisfies ...string) error {
+	path = append([]string(nil), path...)
+	var (
+		unknownSeen    bool
+		fieldSeen      = make(map[string]struct{}, len(exercise.Columns))
+		selectedFields = []string{exercise.FieldID}
+	)
+	for _, field := range graphql.CollectFields(opCtx, collected.Selections, satisfies) {
+		switch field.Name {
+		case "musclesGroups":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&MusclesGroupClient{config: e.config}).Query()
+			)
+			args := newMusclesGroupPaginateArgs(fieldArgs(ctx, new(MusclesGroupWhereInput), path...))
+			if err := validateFirstLast(args.first, args.last); err != nil {
+				return fmt.Errorf("validate first and last in path %q: %w", path, err)
+			}
+			pager, err := newMusclesGroupPager(args.opts, args.last != nil)
+			if err != nil {
+				return fmt.Errorf("create new pager in path %q: %w", path, err)
+			}
+			if query, err = pager.applyFilter(query); err != nil {
+				return err
+			}
+			ignoredEdges := !hasCollectedField(ctx, append(path, edgesField)...)
+			if hasCollectedField(ctx, append(path, totalCountField)...) || hasCollectedField(ctx, append(path, pageInfoField)...) {
+				hasPagination := args.after != nil || args.first != nil || args.before != nil || args.last != nil
+				if hasPagination || ignoredEdges {
+					query := query.Clone()
+					e.loadTotal = append(e.loadTotal, func(ctx context.Context, nodes []*Exercise) error {
+						ids := make([]driver.Value, len(nodes))
+						for i := range nodes {
+							ids[i] = nodes[i].ID
+						}
+						var v []struct {
+							NodeID pksuid.ID `sql:"exercise_id"`
+							Count  int       `sql:"count"`
+						}
+						query.Where(func(s *sql.Selector) {
+							joinT := sql.Table(exercise.MusclesGroupsTable)
+							s.Join(joinT).On(s.C(musclesgroup.FieldID), joinT.C(exercise.MusclesGroupsPrimaryKey[1]))
+							s.Where(sql.InValues(joinT.C(exercise.MusclesGroupsPrimaryKey[0]), ids...))
+							s.Select(joinT.C(exercise.MusclesGroupsPrimaryKey[0]), sql.Count("*"))
+							s.GroupBy(joinT.C(exercise.MusclesGroupsPrimaryKey[0]))
+						})
+						if err := query.Select().Scan(ctx, &v); err != nil {
+							return err
+						}
+						m := make(map[pksuid.ID]int, len(v))
+						for i := range v {
+							m[v[i].NodeID] = v[i].Count
+						}
+						for i := range nodes {
+							n := m[nodes[i].ID]
+							if nodes[i].Edges.totalCount[0] == nil {
+								nodes[i].Edges.totalCount[0] = make(map[string]int)
+							}
+							nodes[i].Edges.totalCount[0][alias] = n
+						}
+						return nil
+					})
+				} else {
+					e.loadTotal = append(e.loadTotal, func(_ context.Context, nodes []*Exercise) error {
+						for i := range nodes {
+							n := len(nodes[i].Edges.MusclesGroups)
+							if nodes[i].Edges.totalCount[0] == nil {
+								nodes[i].Edges.totalCount[0] = make(map[string]int)
+							}
+							nodes[i].Edges.totalCount[0][alias] = n
+						}
+						return nil
+					})
+				}
+			}
+			if ignoredEdges || (args.first != nil && *args.first == 0) || (args.last != nil && *args.last == 0) {
+				continue
+			}
+			if query, err = pager.applyCursors(query, args.after, args.before); err != nil {
+				return err
+			}
+			path = append(path, edgesField, nodeField)
+			if field := collectedField(ctx, path...); field != nil {
+				if err := query.collectField(ctx, opCtx, *field, path, mayAddCondition(satisfies, "MusclesGroup")...); err != nil {
+					return err
+				}
+			}
+			if limit := paginateLimit(args.first, args.last); limit > 0 {
+				modify := limitRows(exercise.MusclesGroupsPrimaryKey[0], limit, pager.orderExpr(query))
+				query.modifiers = append(query.modifiers, modify)
+			} else {
+				query = pager.applyOrder(query)
+			}
+			e.WithNamedMusclesGroups(alias, func(wq *MusclesGroupQuery) {
+				*wq = *query
+			})
+		case "name":
+			if _, ok := fieldSeen[exercise.FieldName]; !ok {
+				selectedFields = append(selectedFields, exercise.FieldName)
+				fieldSeen[exercise.FieldName] = struct{}{}
+			}
+		case "image":
+			if _, ok := fieldSeen[exercise.FieldImage]; !ok {
+				selectedFields = append(selectedFields, exercise.FieldImage)
+				fieldSeen[exercise.FieldImage] = struct{}{}
+			}
+		case "howTo":
+			if _, ok := fieldSeen[exercise.FieldHowTo]; !ok {
+				selectedFields = append(selectedFields, exercise.FieldHowTo)
+				fieldSeen[exercise.FieldHowTo] = struct{}{}
+			}
+		case "id":
+		case "__typename":
+		default:
+			unknownSeen = true
+		}
+	}
+	if !unknownSeen {
+		e.Select(selectedFields...)
+	}
+	return nil
+}
+
+type exercisePaginateArgs struct {
+	first, last   *int
+	after, before *Cursor
+	opts          []ExercisePaginateOption
+}
+
+func newExercisePaginateArgs(rv map[string]any) *exercisePaginateArgs {
+	args := &exercisePaginateArgs{}
+	if rv == nil {
+		return args
+	}
+	if v := rv[firstField]; v != nil {
+		args.first = v.(*int)
+	}
+	if v := rv[lastField]; v != nil {
+		args.last = v.(*int)
+	}
+	if v := rv[afterField]; v != nil {
+		args.after = v.(*Cursor)
+	}
+	if v := rv[beforeField]; v != nil {
+		args.before = v.(*Cursor)
+	}
+	if v, ok := rv[orderByField]; ok {
+		switch v := v.(type) {
+		case map[string]any:
+			var (
+				err1, err2 error
+				order      = &ExerciseOrder{Field: &ExerciseOrderField{}, Direction: entgql.OrderDirectionAsc}
+			)
+			if d, ok := v[directionField]; ok {
+				err1 = order.Direction.UnmarshalGQL(d)
+			}
+			if f, ok := v[fieldField]; ok {
+				err2 = order.Field.UnmarshalGQL(f)
+			}
+			if err1 == nil && err2 == nil {
+				args.opts = append(args.opts, WithExerciseOrder(order))
+			}
+		case *ExerciseOrder:
+			if v != nil {
+				args.opts = append(args.opts, WithExerciseOrder(v))
+			}
+		}
+	}
+	if v, ok := rv[whereField].(*ExerciseWhereInput); ok {
+		args.opts = append(args.opts, WithExerciseFilter(v.Filter))
+	}
+	return args
+}
+
+// CollectFields tells the query-builder to eagerly load connected nodes by resolver context.
+func (mg *MusclesGroupQuery) CollectFields(ctx context.Context, satisfies ...string) (*MusclesGroupQuery, error) {
+	fc := graphql.GetFieldContext(ctx)
+	if fc == nil {
+		return mg, nil
+	}
+	if err := mg.collectField(ctx, graphql.GetOperationContext(ctx), fc.Field, nil, satisfies...); err != nil {
+		return nil, err
+	}
+	return mg, nil
+}
+
+func (mg *MusclesGroupQuery) collectField(ctx context.Context, opCtx *graphql.OperationContext, collected graphql.CollectedField, path []string, satisfies ...string) error {
+	path = append([]string(nil), path...)
+	var (
+		unknownSeen    bool
+		fieldSeen      = make(map[string]struct{}, len(musclesgroup.Columns))
+		selectedFields = []string{musclesgroup.FieldID}
+	)
+	for _, field := range graphql.CollectFields(opCtx, collected.Selections, satisfies) {
+		switch field.Name {
+		case "exercises":
+			var (
+				alias = field.Alias
+				path  = append(path, alias)
+				query = (&ExerciseClient{config: mg.config}).Query()
+			)
+			args := newExercisePaginateArgs(fieldArgs(ctx, new(ExerciseWhereInput), path...))
+			if err := validateFirstLast(args.first, args.last); err != nil {
+				return fmt.Errorf("validate first and last in path %q: %w", path, err)
+			}
+			pager, err := newExercisePager(args.opts, args.last != nil)
+			if err != nil {
+				return fmt.Errorf("create new pager in path %q: %w", path, err)
+			}
+			if query, err = pager.applyFilter(query); err != nil {
+				return err
+			}
+			ignoredEdges := !hasCollectedField(ctx, append(path, edgesField)...)
+			if hasCollectedField(ctx, append(path, totalCountField)...) || hasCollectedField(ctx, append(path, pageInfoField)...) {
+				hasPagination := args.after != nil || args.first != nil || args.before != nil || args.last != nil
+				if hasPagination || ignoredEdges {
+					query := query.Clone()
+					mg.loadTotal = append(mg.loadTotal, func(ctx context.Context, nodes []*MusclesGroup) error {
+						ids := make([]driver.Value, len(nodes))
+						for i := range nodes {
+							ids[i] = nodes[i].ID
+						}
+						var v []struct {
+							NodeID pksuid.ID `sql:"muscles_group_id"`
+							Count  int       `sql:"count"`
+						}
+						query.Where(func(s *sql.Selector) {
+							joinT := sql.Table(musclesgroup.ExercisesTable)
+							s.Join(joinT).On(s.C(exercise.FieldID), joinT.C(musclesgroup.ExercisesPrimaryKey[0]))
+							s.Where(sql.InValues(joinT.C(musclesgroup.ExercisesPrimaryKey[1]), ids...))
+							s.Select(joinT.C(musclesgroup.ExercisesPrimaryKey[1]), sql.Count("*"))
+							s.GroupBy(joinT.C(musclesgroup.ExercisesPrimaryKey[1]))
+						})
+						if err := query.Select().Scan(ctx, &v); err != nil {
+							return err
+						}
+						m := make(map[pksuid.ID]int, len(v))
+						for i := range v {
+							m[v[i].NodeID] = v[i].Count
+						}
+						for i := range nodes {
+							n := m[nodes[i].ID]
+							if nodes[i].Edges.totalCount[0] == nil {
+								nodes[i].Edges.totalCount[0] = make(map[string]int)
+							}
+							nodes[i].Edges.totalCount[0][alias] = n
+						}
+						return nil
+					})
+				} else {
+					mg.loadTotal = append(mg.loadTotal, func(_ context.Context, nodes []*MusclesGroup) error {
+						for i := range nodes {
+							n := len(nodes[i].Edges.Exercises)
+							if nodes[i].Edges.totalCount[0] == nil {
+								nodes[i].Edges.totalCount[0] = make(map[string]int)
+							}
+							nodes[i].Edges.totalCount[0][alias] = n
+						}
+						return nil
+					})
+				}
+			}
+			if ignoredEdges || (args.first != nil && *args.first == 0) || (args.last != nil && *args.last == 0) {
+				continue
+			}
+			if query, err = pager.applyCursors(query, args.after, args.before); err != nil {
+				return err
+			}
+			path = append(path, edgesField, nodeField)
+			if field := collectedField(ctx, path...); field != nil {
+				if err := query.collectField(ctx, opCtx, *field, path, mayAddCondition(satisfies, "Exercise")...); err != nil {
+					return err
+				}
+			}
+			if limit := paginateLimit(args.first, args.last); limit > 0 {
+				modify := limitRows(musclesgroup.ExercisesPrimaryKey[1], limit, pager.orderExpr(query))
+				query.modifiers = append(query.modifiers, modify)
+			} else {
+				query = pager.applyOrder(query)
+			}
+			mg.WithNamedExercises(alias, func(wq *ExerciseQuery) {
+				*wq = *query
+			})
+		case "name":
+			if _, ok := fieldSeen[musclesgroup.FieldName]; !ok {
+				selectedFields = append(selectedFields, musclesgroup.FieldName)
+				fieldSeen[musclesgroup.FieldName] = struct{}{}
+			}
+		case "image":
+			if _, ok := fieldSeen[musclesgroup.FieldImage]; !ok {
+				selectedFields = append(selectedFields, musclesgroup.FieldImage)
+				fieldSeen[musclesgroup.FieldImage] = struct{}{}
+			}
+		case "id":
+		case "__typename":
+		default:
+			unknownSeen = true
+		}
+	}
+	if !unknownSeen {
+		mg.Select(selectedFields...)
+	}
+	return nil
+}
+
+type musclesgroupPaginateArgs struct {
+	first, last   *int
+	after, before *Cursor
+	opts          []MusclesGroupPaginateOption
+}
+
+func newMusclesGroupPaginateArgs(rv map[string]any) *musclesgroupPaginateArgs {
+	args := &musclesgroupPaginateArgs{}
+	if rv == nil {
+		return args
+	}
+	if v := rv[firstField]; v != nil {
+		args.first = v.(*int)
+	}
+	if v := rv[lastField]; v != nil {
+		args.last = v.(*int)
+	}
+	if v := rv[afterField]; v != nil {
+		args.after = v.(*Cursor)
+	}
+	if v := rv[beforeField]; v != nil {
+		args.before = v.(*Cursor)
+	}
+	if v, ok := rv[orderByField]; ok {
+		switch v := v.(type) {
+		case map[string]any:
+			var (
+				err1, err2 error
+				order      = &MusclesGroupOrder{Field: &MusclesGroupOrderField{}, Direction: entgql.OrderDirectionAsc}
+			)
+			if d, ok := v[directionField]; ok {
+				err1 = order.Direction.UnmarshalGQL(d)
+			}
+			if f, ok := v[fieldField]; ok {
+				err2 = order.Field.UnmarshalGQL(f)
+			}
+			if err1 == nil && err2 == nil {
+				args.opts = append(args.opts, WithMusclesGroupOrder(order))
+			}
+		case *MusclesGroupOrder:
+			if v != nil {
+				args.opts = append(args.opts, WithMusclesGroupOrder(v))
+			}
+		}
+	}
+	if v, ok := rv[whereField].(*MusclesGroupWhereInput); ok {
+		args.opts = append(args.opts, WithMusclesGroupFilter(v.Filter))
+	}
+	return args
+}
 
 // CollectFields tells the query-builder to eagerly load connected nodes by resolver context.
 func (t *TodoQuery) CollectFields(ctx context.Context, satisfies ...string) (*TodoQuery, error) {
@@ -21,18 +397,95 @@ func (t *TodoQuery) CollectFields(ctx context.Context, satisfies ...string) (*To
 	return t, nil
 }
 
-func (t *TodoQuery) collectField(ctx context.Context, op *graphql.OperationContext, field graphql.CollectedField, path []string, satisfies ...string) error {
+func (t *TodoQuery) collectField(ctx context.Context, opCtx *graphql.OperationContext, collected graphql.CollectedField, path []string, satisfies ...string) error {
 	path = append([]string(nil), path...)
-	for _, field := range graphql.CollectFields(op, field.Selections, satisfies) {
+	var (
+		unknownSeen    bool
+		fieldSeen      = make(map[string]struct{}, len(todo.Columns))
+		selectedFields = []string{todo.FieldID}
+	)
+	for _, field := range graphql.CollectFields(opCtx, collected.Selections, satisfies) {
 		switch field.Name {
 		case "children":
 			var (
 				alias = field.Alias
 				path  = append(path, alias)
-				query = &TodoQuery{config: t.config}
+				query = (&TodoClient{config: t.config}).Query()
 			)
-			if err := query.collectField(ctx, op, field, path, satisfies...); err != nil {
+			args := newTodoPaginateArgs(fieldArgs(ctx, new(TodoWhereInput), path...))
+			if err := validateFirstLast(args.first, args.last); err != nil {
+				return fmt.Errorf("validate first and last in path %q: %w", path, err)
+			}
+			pager, err := newTodoPager(args.opts, args.last != nil)
+			if err != nil {
+				return fmt.Errorf("create new pager in path %q: %w", path, err)
+			}
+			if query, err = pager.applyFilter(query); err != nil {
 				return err
+			}
+			ignoredEdges := !hasCollectedField(ctx, append(path, edgesField)...)
+			if hasCollectedField(ctx, append(path, totalCountField)...) || hasCollectedField(ctx, append(path, pageInfoField)...) {
+				hasPagination := args.after != nil || args.first != nil || args.before != nil || args.last != nil
+				if hasPagination || ignoredEdges {
+					query := query.Clone()
+					t.loadTotal = append(t.loadTotal, func(ctx context.Context, nodes []*Todo) error {
+						ids := make([]driver.Value, len(nodes))
+						for i := range nodes {
+							ids[i] = nodes[i].ID
+						}
+						var v []struct {
+							NodeID pksuid.ID `sql:"todo_parent"`
+							Count  int       `sql:"count"`
+						}
+						query.Where(func(s *sql.Selector) {
+							s.Where(sql.InValues(s.C(todo.ChildrenColumn), ids...))
+						})
+						if err := query.GroupBy(todo.ChildrenColumn).Aggregate(Count()).Scan(ctx, &v); err != nil {
+							return err
+						}
+						m := make(map[pksuid.ID]int, len(v))
+						for i := range v {
+							m[v[i].NodeID] = v[i].Count
+						}
+						for i := range nodes {
+							n := m[nodes[i].ID]
+							if nodes[i].Edges.totalCount[0] == nil {
+								nodes[i].Edges.totalCount[0] = make(map[string]int)
+							}
+							nodes[i].Edges.totalCount[0][alias] = n
+						}
+						return nil
+					})
+				} else {
+					t.loadTotal = append(t.loadTotal, func(_ context.Context, nodes []*Todo) error {
+						for i := range nodes {
+							n := len(nodes[i].Edges.Children)
+							if nodes[i].Edges.totalCount[0] == nil {
+								nodes[i].Edges.totalCount[0] = make(map[string]int)
+							}
+							nodes[i].Edges.totalCount[0][alias] = n
+						}
+						return nil
+					})
+				}
+			}
+			if ignoredEdges || (args.first != nil && *args.first == 0) || (args.last != nil && *args.last == 0) {
+				continue
+			}
+			if query, err = pager.applyCursors(query, args.after, args.before); err != nil {
+				return err
+			}
+			path = append(path, edgesField, nodeField)
+			if field := collectedField(ctx, path...); field != nil {
+				if err := query.collectField(ctx, opCtx, *field, path, mayAddCondition(satisfies, "Todo")...); err != nil {
+					return err
+				}
+			}
+			if limit := paginateLimit(args.first, args.last); limit > 0 {
+				modify := limitRows(todo.ChildrenColumn, limit, pager.orderExpr(query))
+				query.modifiers = append(query.modifiers, modify)
+			} else {
+				query = pager.applyOrder(query)
 			}
 			t.WithNamedChildren(alias, func(wq *TodoQuery) {
 				*wq = *query
@@ -41,13 +494,40 @@ func (t *TodoQuery) collectField(ctx context.Context, op *graphql.OperationConte
 			var (
 				alias = field.Alias
 				path  = append(path, alias)
-				query = &TodoQuery{config: t.config}
+				query = (&TodoClient{config: t.config}).Query()
 			)
-			if err := query.collectField(ctx, op, field, path, satisfies...); err != nil {
+			if err := query.collectField(ctx, opCtx, field, path, satisfies...); err != nil {
 				return err
 			}
 			t.withParent = query
+		case "text":
+			if _, ok := fieldSeen[todo.FieldText]; !ok {
+				selectedFields = append(selectedFields, todo.FieldText)
+				fieldSeen[todo.FieldText] = struct{}{}
+			}
+		case "createdAt":
+			if _, ok := fieldSeen[todo.FieldCreatedAt]; !ok {
+				selectedFields = append(selectedFields, todo.FieldCreatedAt)
+				fieldSeen[todo.FieldCreatedAt] = struct{}{}
+			}
+		case "status":
+			if _, ok := fieldSeen[todo.FieldStatus]; !ok {
+				selectedFields = append(selectedFields, todo.FieldStatus)
+				fieldSeen[todo.FieldStatus] = struct{}{}
+			}
+		case "priority":
+			if _, ok := fieldSeen[todo.FieldPriority]; !ok {
+				selectedFields = append(selectedFields, todo.FieldPriority)
+				fieldSeen[todo.FieldPriority] = struct{}{}
+			}
+		case "id":
+		case "__typename":
+		default:
+			unknownSeen = true
 		}
+	}
+	if !unknownSeen {
+		t.Select(selectedFields...)
 	}
 	return nil
 }
@@ -58,7 +538,7 @@ type todoPaginateArgs struct {
 	opts          []TodoPaginateOption
 }
 
-func newTodoPaginateArgs(rv map[string]interface{}) *todoPaginateArgs {
+func newTodoPaginateArgs(rv map[string]any) *todoPaginateArgs {
 	args := &todoPaginateArgs{}
 	if rv == nil {
 		return args
@@ -77,10 +557,10 @@ func newTodoPaginateArgs(rv map[string]interface{}) *todoPaginateArgs {
 	}
 	if v, ok := rv[orderByField]; ok {
 		switch v := v.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			var (
 				err1, err2 error
-				order      = &TodoOrder{Field: &TodoOrderField{}}
+				order      = &TodoOrder{Field: &TodoOrderField{}, Direction: entgql.OrderDirectionAsc}
 			)
 			if d, ok := v[directionField]; ok {
 				err1 = order.Direction.UnmarshalGQL(d)
@@ -114,35 +594,18 @@ const (
 	whereField     = "where"
 )
 
-func fieldArgs(ctx context.Context, whereInput interface{}, path ...string) map[string]interface{} {
-	fc := graphql.GetFieldContext(ctx)
-	if fc == nil {
+func fieldArgs(ctx context.Context, whereInput any, path ...string) map[string]any {
+	field := collectedField(ctx, path...)
+	if field == nil || field.Arguments == nil {
 		return nil
 	}
 	oc := graphql.GetOperationContext(ctx)
-	for _, name := range path {
-		var field *graphql.CollectedField
-		for _, f := range graphql.CollectFields(oc, fc.Field.Selections, nil) {
-			if f.Alias == name {
-				field = &f
-				break
-			}
-		}
-		if field == nil {
-			return nil
-		}
-		cf, err := fc.Child(ctx, *field)
-		if err != nil {
-			args := field.ArgumentMap(oc.Variables)
-			return unmarshalArgs(ctx, whereInput, args)
-		}
-		fc = cf
-	}
-	return fc.Args
+	args := field.ArgumentMap(oc.Variables)
+	return unmarshalArgs(ctx, whereInput, args)
 }
 
 // unmarshalArgs allows extracting the field arguments from their raw representation.
-func unmarshalArgs(ctx context.Context, whereInput interface{}, args map[string]interface{}) map[string]interface{} {
+func unmarshalArgs(ctx context.Context, whereInput any, args map[string]any) map[string]any {
 	for _, k := range []string{firstField, lastField} {
 		v, ok := args[k]
 		if !ok {
@@ -193,4 +656,18 @@ func limitRows(partitionBy string, limit int, orderBy ...sql.Querier) func(s *sq
 			Where(sql.LTE(t.C("row_number"), limit)).
 			Prefix(with)
 	}
+}
+
+// mayAddCondition appends another type condition to the satisfies list
+// if condition is enabled (Node/Nodes) and it does not exist in the list.
+func mayAddCondition(satisfies []string, typeCond string) []string {
+	if len(satisfies) == 0 {
+		return satisfies
+	}
+	for _, s := range satisfies {
+		if typeCond == s {
+			return satisfies
+		}
+	}
+	return append(satisfies, typeCond)
 }

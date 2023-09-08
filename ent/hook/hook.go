@@ -8,17 +8,40 @@ import (
 	"todo/ent"
 )
 
+// The ExerciseFunc type is an adapter to allow the use of ordinary
+// function as Exercise mutator.
+type ExerciseFunc func(context.Context, *ent.ExerciseMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ExerciseFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ExerciseMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ExerciseMutation", m)
+}
+
+// The MusclesGroupFunc type is an adapter to allow the use of ordinary
+// function as MusclesGroup mutator.
+type MusclesGroupFunc func(context.Context, *ent.MusclesGroupMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f MusclesGroupFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.MusclesGroupMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MusclesGroupMutation", m)
+}
+
 // The TodoFunc type is an adapter to allow the use of ordinary
 // function as Todo mutator.
 type TodoFunc func(context.Context, *ent.TodoMutation) (ent.Value, error)
 
 // Mutate calls f(ctx, m).
 func (f TodoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-	mv, ok := m.(*ent.TodoMutation)
-	if !ok {
-		return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TodoMutation", m)
+	if mv, ok := m.(*ent.TodoMutation); ok {
+		return f(ctx, mv)
 	}
-	return f(ctx, mv)
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TodoMutation", m)
 }
 
 // Condition is a hook condition function.

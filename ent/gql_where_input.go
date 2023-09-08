@@ -6,9 +6,590 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"todo/ent/exercise"
+	"todo/ent/musclesgroup"
 	"todo/ent/predicate"
+	"todo/ent/schema/pksuid"
 	"todo/ent/todo"
 )
+
+// ExerciseWhereInput represents a where input for filtering Exercise queries.
+type ExerciseWhereInput struct {
+	Predicates []predicate.Exercise  `json:"-"`
+	Not        *ExerciseWhereInput   `json:"not,omitempty"`
+	Or         []*ExerciseWhereInput `json:"or,omitempty"`
+	And        []*ExerciseWhereInput `json:"and,omitempty"`
+
+	// "id" field predicates.
+	ID      *pksuid.ID  `json:"id,omitempty"`
+	IDNEQ   *pksuid.ID  `json:"idNEQ,omitempty"`
+	IDIn    []pksuid.ID `json:"idIn,omitempty"`
+	IDNotIn []pksuid.ID `json:"idNotIn,omitempty"`
+	IDGT    *pksuid.ID  `json:"idGT,omitempty"`
+	IDGTE   *pksuid.ID  `json:"idGTE,omitempty"`
+	IDLT    *pksuid.ID  `json:"idLT,omitempty"`
+	IDLTE   *pksuid.ID  `json:"idLTE,omitempty"`
+
+	// "name" field predicates.
+	Name             *string  `json:"name,omitempty"`
+	NameNEQ          *string  `json:"nameNEQ,omitempty"`
+	NameIn           []string `json:"nameIn,omitempty"`
+	NameNotIn        []string `json:"nameNotIn,omitempty"`
+	NameGT           *string  `json:"nameGT,omitempty"`
+	NameGTE          *string  `json:"nameGTE,omitempty"`
+	NameLT           *string  `json:"nameLT,omitempty"`
+	NameLTE          *string  `json:"nameLTE,omitempty"`
+	NameContains     *string  `json:"nameContains,omitempty"`
+	NameHasPrefix    *string  `json:"nameHasPrefix,omitempty"`
+	NameHasSuffix    *string  `json:"nameHasSuffix,omitempty"`
+	NameEqualFold    *string  `json:"nameEqualFold,omitempty"`
+	NameContainsFold *string  `json:"nameContainsFold,omitempty"`
+
+	// "image" field predicates.
+	Image             *string  `json:"image,omitempty"`
+	ImageNEQ          *string  `json:"imageNEQ,omitempty"`
+	ImageIn           []string `json:"imageIn,omitempty"`
+	ImageNotIn        []string `json:"imageNotIn,omitempty"`
+	ImageGT           *string  `json:"imageGT,omitempty"`
+	ImageGTE          *string  `json:"imageGTE,omitempty"`
+	ImageLT           *string  `json:"imageLT,omitempty"`
+	ImageLTE          *string  `json:"imageLTE,omitempty"`
+	ImageContains     *string  `json:"imageContains,omitempty"`
+	ImageHasPrefix    *string  `json:"imageHasPrefix,omitempty"`
+	ImageHasSuffix    *string  `json:"imageHasSuffix,omitempty"`
+	ImageIsNil        bool     `json:"imageIsNil,omitempty"`
+	ImageNotNil       bool     `json:"imageNotNil,omitempty"`
+	ImageEqualFold    *string  `json:"imageEqualFold,omitempty"`
+	ImageContainsFold *string  `json:"imageContainsFold,omitempty"`
+
+	// "how_to" field predicates.
+	HowTo             *string  `json:"howTo,omitempty"`
+	HowToNEQ          *string  `json:"howToNEQ,omitempty"`
+	HowToIn           []string `json:"howToIn,omitempty"`
+	HowToNotIn        []string `json:"howToNotIn,omitempty"`
+	HowToGT           *string  `json:"howToGT,omitempty"`
+	HowToGTE          *string  `json:"howToGTE,omitempty"`
+	HowToLT           *string  `json:"howToLT,omitempty"`
+	HowToLTE          *string  `json:"howToLTE,omitempty"`
+	HowToContains     *string  `json:"howToContains,omitempty"`
+	HowToHasPrefix    *string  `json:"howToHasPrefix,omitempty"`
+	HowToHasSuffix    *string  `json:"howToHasSuffix,omitempty"`
+	HowToIsNil        bool     `json:"howToIsNil,omitempty"`
+	HowToNotNil       bool     `json:"howToNotNil,omitempty"`
+	HowToEqualFold    *string  `json:"howToEqualFold,omitempty"`
+	HowToContainsFold *string  `json:"howToContainsFold,omitempty"`
+
+	// "muscles_groups" edge predicates.
+	HasMusclesGroups     *bool                     `json:"hasMusclesGroups,omitempty"`
+	HasMusclesGroupsWith []*MusclesGroupWhereInput `json:"hasMusclesGroupsWith,omitempty"`
+}
+
+// AddPredicates adds custom predicates to the where input to be used during the filtering phase.
+func (i *ExerciseWhereInput) AddPredicates(predicates ...predicate.Exercise) {
+	i.Predicates = append(i.Predicates, predicates...)
+}
+
+// Filter applies the ExerciseWhereInput filter on the ExerciseQuery builder.
+func (i *ExerciseWhereInput) Filter(q *ExerciseQuery) (*ExerciseQuery, error) {
+	if i == nil {
+		return q, nil
+	}
+	p, err := i.P()
+	if err != nil {
+		if err == ErrEmptyExerciseWhereInput {
+			return q, nil
+		}
+		return nil, err
+	}
+	return q.Where(p), nil
+}
+
+// ErrEmptyExerciseWhereInput is returned in case the ExerciseWhereInput is empty.
+var ErrEmptyExerciseWhereInput = errors.New("ent: empty predicate ExerciseWhereInput")
+
+// P returns a predicate for filtering exercises.
+// An error is returned if the input is empty or invalid.
+func (i *ExerciseWhereInput) P() (predicate.Exercise, error) {
+	var predicates []predicate.Exercise
+	if i.Not != nil {
+		p, err := i.Not.P()
+		if err != nil {
+			return nil, fmt.Errorf("%w: field 'not'", err)
+		}
+		predicates = append(predicates, exercise.Not(p))
+	}
+	switch n := len(i.Or); {
+	case n == 1:
+		p, err := i.Or[0].P()
+		if err != nil {
+			return nil, fmt.Errorf("%w: field 'or'", err)
+		}
+		predicates = append(predicates, p)
+	case n > 1:
+		or := make([]predicate.Exercise, 0, n)
+		for _, w := range i.Or {
+			p, err := w.P()
+			if err != nil {
+				return nil, fmt.Errorf("%w: field 'or'", err)
+			}
+			or = append(or, p)
+		}
+		predicates = append(predicates, exercise.Or(or...))
+	}
+	switch n := len(i.And); {
+	case n == 1:
+		p, err := i.And[0].P()
+		if err != nil {
+			return nil, fmt.Errorf("%w: field 'and'", err)
+		}
+		predicates = append(predicates, p)
+	case n > 1:
+		and := make([]predicate.Exercise, 0, n)
+		for _, w := range i.And {
+			p, err := w.P()
+			if err != nil {
+				return nil, fmt.Errorf("%w: field 'and'", err)
+			}
+			and = append(and, p)
+		}
+		predicates = append(predicates, exercise.And(and...))
+	}
+	predicates = append(predicates, i.Predicates...)
+	if i.ID != nil {
+		predicates = append(predicates, exercise.IDEQ(*i.ID))
+	}
+	if i.IDNEQ != nil {
+		predicates = append(predicates, exercise.IDNEQ(*i.IDNEQ))
+	}
+	if len(i.IDIn) > 0 {
+		predicates = append(predicates, exercise.IDIn(i.IDIn...))
+	}
+	if len(i.IDNotIn) > 0 {
+		predicates = append(predicates, exercise.IDNotIn(i.IDNotIn...))
+	}
+	if i.IDGT != nil {
+		predicates = append(predicates, exercise.IDGT(*i.IDGT))
+	}
+	if i.IDGTE != nil {
+		predicates = append(predicates, exercise.IDGTE(*i.IDGTE))
+	}
+	if i.IDLT != nil {
+		predicates = append(predicates, exercise.IDLT(*i.IDLT))
+	}
+	if i.IDLTE != nil {
+		predicates = append(predicates, exercise.IDLTE(*i.IDLTE))
+	}
+	if i.Name != nil {
+		predicates = append(predicates, exercise.NameEQ(*i.Name))
+	}
+	if i.NameNEQ != nil {
+		predicates = append(predicates, exercise.NameNEQ(*i.NameNEQ))
+	}
+	if len(i.NameIn) > 0 {
+		predicates = append(predicates, exercise.NameIn(i.NameIn...))
+	}
+	if len(i.NameNotIn) > 0 {
+		predicates = append(predicates, exercise.NameNotIn(i.NameNotIn...))
+	}
+	if i.NameGT != nil {
+		predicates = append(predicates, exercise.NameGT(*i.NameGT))
+	}
+	if i.NameGTE != nil {
+		predicates = append(predicates, exercise.NameGTE(*i.NameGTE))
+	}
+	if i.NameLT != nil {
+		predicates = append(predicates, exercise.NameLT(*i.NameLT))
+	}
+	if i.NameLTE != nil {
+		predicates = append(predicates, exercise.NameLTE(*i.NameLTE))
+	}
+	if i.NameContains != nil {
+		predicates = append(predicates, exercise.NameContains(*i.NameContains))
+	}
+	if i.NameHasPrefix != nil {
+		predicates = append(predicates, exercise.NameHasPrefix(*i.NameHasPrefix))
+	}
+	if i.NameHasSuffix != nil {
+		predicates = append(predicates, exercise.NameHasSuffix(*i.NameHasSuffix))
+	}
+	if i.NameEqualFold != nil {
+		predicates = append(predicates, exercise.NameEqualFold(*i.NameEqualFold))
+	}
+	if i.NameContainsFold != nil {
+		predicates = append(predicates, exercise.NameContainsFold(*i.NameContainsFold))
+	}
+	if i.Image != nil {
+		predicates = append(predicates, exercise.ImageEQ(*i.Image))
+	}
+	if i.ImageNEQ != nil {
+		predicates = append(predicates, exercise.ImageNEQ(*i.ImageNEQ))
+	}
+	if len(i.ImageIn) > 0 {
+		predicates = append(predicates, exercise.ImageIn(i.ImageIn...))
+	}
+	if len(i.ImageNotIn) > 0 {
+		predicates = append(predicates, exercise.ImageNotIn(i.ImageNotIn...))
+	}
+	if i.ImageGT != nil {
+		predicates = append(predicates, exercise.ImageGT(*i.ImageGT))
+	}
+	if i.ImageGTE != nil {
+		predicates = append(predicates, exercise.ImageGTE(*i.ImageGTE))
+	}
+	if i.ImageLT != nil {
+		predicates = append(predicates, exercise.ImageLT(*i.ImageLT))
+	}
+	if i.ImageLTE != nil {
+		predicates = append(predicates, exercise.ImageLTE(*i.ImageLTE))
+	}
+	if i.ImageContains != nil {
+		predicates = append(predicates, exercise.ImageContains(*i.ImageContains))
+	}
+	if i.ImageHasPrefix != nil {
+		predicates = append(predicates, exercise.ImageHasPrefix(*i.ImageHasPrefix))
+	}
+	if i.ImageHasSuffix != nil {
+		predicates = append(predicates, exercise.ImageHasSuffix(*i.ImageHasSuffix))
+	}
+	if i.ImageIsNil {
+		predicates = append(predicates, exercise.ImageIsNil())
+	}
+	if i.ImageNotNil {
+		predicates = append(predicates, exercise.ImageNotNil())
+	}
+	if i.ImageEqualFold != nil {
+		predicates = append(predicates, exercise.ImageEqualFold(*i.ImageEqualFold))
+	}
+	if i.ImageContainsFold != nil {
+		predicates = append(predicates, exercise.ImageContainsFold(*i.ImageContainsFold))
+	}
+	if i.HowTo != nil {
+		predicates = append(predicates, exercise.HowToEQ(*i.HowTo))
+	}
+	if i.HowToNEQ != nil {
+		predicates = append(predicates, exercise.HowToNEQ(*i.HowToNEQ))
+	}
+	if len(i.HowToIn) > 0 {
+		predicates = append(predicates, exercise.HowToIn(i.HowToIn...))
+	}
+	if len(i.HowToNotIn) > 0 {
+		predicates = append(predicates, exercise.HowToNotIn(i.HowToNotIn...))
+	}
+	if i.HowToGT != nil {
+		predicates = append(predicates, exercise.HowToGT(*i.HowToGT))
+	}
+	if i.HowToGTE != nil {
+		predicates = append(predicates, exercise.HowToGTE(*i.HowToGTE))
+	}
+	if i.HowToLT != nil {
+		predicates = append(predicates, exercise.HowToLT(*i.HowToLT))
+	}
+	if i.HowToLTE != nil {
+		predicates = append(predicates, exercise.HowToLTE(*i.HowToLTE))
+	}
+	if i.HowToContains != nil {
+		predicates = append(predicates, exercise.HowToContains(*i.HowToContains))
+	}
+	if i.HowToHasPrefix != nil {
+		predicates = append(predicates, exercise.HowToHasPrefix(*i.HowToHasPrefix))
+	}
+	if i.HowToHasSuffix != nil {
+		predicates = append(predicates, exercise.HowToHasSuffix(*i.HowToHasSuffix))
+	}
+	if i.HowToIsNil {
+		predicates = append(predicates, exercise.HowToIsNil())
+	}
+	if i.HowToNotNil {
+		predicates = append(predicates, exercise.HowToNotNil())
+	}
+	if i.HowToEqualFold != nil {
+		predicates = append(predicates, exercise.HowToEqualFold(*i.HowToEqualFold))
+	}
+	if i.HowToContainsFold != nil {
+		predicates = append(predicates, exercise.HowToContainsFold(*i.HowToContainsFold))
+	}
+
+	if i.HasMusclesGroups != nil {
+		p := exercise.HasMusclesGroups()
+		if !*i.HasMusclesGroups {
+			p = exercise.Not(p)
+		}
+		predicates = append(predicates, p)
+	}
+	if len(i.HasMusclesGroupsWith) > 0 {
+		with := make([]predicate.MusclesGroup, 0, len(i.HasMusclesGroupsWith))
+		for _, w := range i.HasMusclesGroupsWith {
+			p, err := w.P()
+			if err != nil {
+				return nil, fmt.Errorf("%w: field 'HasMusclesGroupsWith'", err)
+			}
+			with = append(with, p)
+		}
+		predicates = append(predicates, exercise.HasMusclesGroupsWith(with...))
+	}
+	switch len(predicates) {
+	case 0:
+		return nil, ErrEmptyExerciseWhereInput
+	case 1:
+		return predicates[0], nil
+	default:
+		return exercise.And(predicates...), nil
+	}
+}
+
+// MusclesGroupWhereInput represents a where input for filtering MusclesGroup queries.
+type MusclesGroupWhereInput struct {
+	Predicates []predicate.MusclesGroup  `json:"-"`
+	Not        *MusclesGroupWhereInput   `json:"not,omitempty"`
+	Or         []*MusclesGroupWhereInput `json:"or,omitempty"`
+	And        []*MusclesGroupWhereInput `json:"and,omitempty"`
+
+	// "id" field predicates.
+	ID      *pksuid.ID  `json:"id,omitempty"`
+	IDNEQ   *pksuid.ID  `json:"idNEQ,omitempty"`
+	IDIn    []pksuid.ID `json:"idIn,omitempty"`
+	IDNotIn []pksuid.ID `json:"idNotIn,omitempty"`
+	IDGT    *pksuid.ID  `json:"idGT,omitempty"`
+	IDGTE   *pksuid.ID  `json:"idGTE,omitempty"`
+	IDLT    *pksuid.ID  `json:"idLT,omitempty"`
+	IDLTE   *pksuid.ID  `json:"idLTE,omitempty"`
+
+	// "name" field predicates.
+	Name             *string  `json:"name,omitempty"`
+	NameNEQ          *string  `json:"nameNEQ,omitempty"`
+	NameIn           []string `json:"nameIn,omitempty"`
+	NameNotIn        []string `json:"nameNotIn,omitempty"`
+	NameGT           *string  `json:"nameGT,omitempty"`
+	NameGTE          *string  `json:"nameGTE,omitempty"`
+	NameLT           *string  `json:"nameLT,omitempty"`
+	NameLTE          *string  `json:"nameLTE,omitempty"`
+	NameContains     *string  `json:"nameContains,omitempty"`
+	NameHasPrefix    *string  `json:"nameHasPrefix,omitempty"`
+	NameHasSuffix    *string  `json:"nameHasSuffix,omitempty"`
+	NameEqualFold    *string  `json:"nameEqualFold,omitempty"`
+	NameContainsFold *string  `json:"nameContainsFold,omitempty"`
+
+	// "image" field predicates.
+	Image             *string  `json:"image,omitempty"`
+	ImageNEQ          *string  `json:"imageNEQ,omitempty"`
+	ImageIn           []string `json:"imageIn,omitempty"`
+	ImageNotIn        []string `json:"imageNotIn,omitempty"`
+	ImageGT           *string  `json:"imageGT,omitempty"`
+	ImageGTE          *string  `json:"imageGTE,omitempty"`
+	ImageLT           *string  `json:"imageLT,omitempty"`
+	ImageLTE          *string  `json:"imageLTE,omitempty"`
+	ImageContains     *string  `json:"imageContains,omitempty"`
+	ImageHasPrefix    *string  `json:"imageHasPrefix,omitempty"`
+	ImageHasSuffix    *string  `json:"imageHasSuffix,omitempty"`
+	ImageEqualFold    *string  `json:"imageEqualFold,omitempty"`
+	ImageContainsFold *string  `json:"imageContainsFold,omitempty"`
+
+	// "exercises" edge predicates.
+	HasExercises     *bool                 `json:"hasExercises,omitempty"`
+	HasExercisesWith []*ExerciseWhereInput `json:"hasExercisesWith,omitempty"`
+}
+
+// AddPredicates adds custom predicates to the where input to be used during the filtering phase.
+func (i *MusclesGroupWhereInput) AddPredicates(predicates ...predicate.MusclesGroup) {
+	i.Predicates = append(i.Predicates, predicates...)
+}
+
+// Filter applies the MusclesGroupWhereInput filter on the MusclesGroupQuery builder.
+func (i *MusclesGroupWhereInput) Filter(q *MusclesGroupQuery) (*MusclesGroupQuery, error) {
+	if i == nil {
+		return q, nil
+	}
+	p, err := i.P()
+	if err != nil {
+		if err == ErrEmptyMusclesGroupWhereInput {
+			return q, nil
+		}
+		return nil, err
+	}
+	return q.Where(p), nil
+}
+
+// ErrEmptyMusclesGroupWhereInput is returned in case the MusclesGroupWhereInput is empty.
+var ErrEmptyMusclesGroupWhereInput = errors.New("ent: empty predicate MusclesGroupWhereInput")
+
+// P returns a predicate for filtering musclesgroups.
+// An error is returned if the input is empty or invalid.
+func (i *MusclesGroupWhereInput) P() (predicate.MusclesGroup, error) {
+	var predicates []predicate.MusclesGroup
+	if i.Not != nil {
+		p, err := i.Not.P()
+		if err != nil {
+			return nil, fmt.Errorf("%w: field 'not'", err)
+		}
+		predicates = append(predicates, musclesgroup.Not(p))
+	}
+	switch n := len(i.Or); {
+	case n == 1:
+		p, err := i.Or[0].P()
+		if err != nil {
+			return nil, fmt.Errorf("%w: field 'or'", err)
+		}
+		predicates = append(predicates, p)
+	case n > 1:
+		or := make([]predicate.MusclesGroup, 0, n)
+		for _, w := range i.Or {
+			p, err := w.P()
+			if err != nil {
+				return nil, fmt.Errorf("%w: field 'or'", err)
+			}
+			or = append(or, p)
+		}
+		predicates = append(predicates, musclesgroup.Or(or...))
+	}
+	switch n := len(i.And); {
+	case n == 1:
+		p, err := i.And[0].P()
+		if err != nil {
+			return nil, fmt.Errorf("%w: field 'and'", err)
+		}
+		predicates = append(predicates, p)
+	case n > 1:
+		and := make([]predicate.MusclesGroup, 0, n)
+		for _, w := range i.And {
+			p, err := w.P()
+			if err != nil {
+				return nil, fmt.Errorf("%w: field 'and'", err)
+			}
+			and = append(and, p)
+		}
+		predicates = append(predicates, musclesgroup.And(and...))
+	}
+	predicates = append(predicates, i.Predicates...)
+	if i.ID != nil {
+		predicates = append(predicates, musclesgroup.IDEQ(*i.ID))
+	}
+	if i.IDNEQ != nil {
+		predicates = append(predicates, musclesgroup.IDNEQ(*i.IDNEQ))
+	}
+	if len(i.IDIn) > 0 {
+		predicates = append(predicates, musclesgroup.IDIn(i.IDIn...))
+	}
+	if len(i.IDNotIn) > 0 {
+		predicates = append(predicates, musclesgroup.IDNotIn(i.IDNotIn...))
+	}
+	if i.IDGT != nil {
+		predicates = append(predicates, musclesgroup.IDGT(*i.IDGT))
+	}
+	if i.IDGTE != nil {
+		predicates = append(predicates, musclesgroup.IDGTE(*i.IDGTE))
+	}
+	if i.IDLT != nil {
+		predicates = append(predicates, musclesgroup.IDLT(*i.IDLT))
+	}
+	if i.IDLTE != nil {
+		predicates = append(predicates, musclesgroup.IDLTE(*i.IDLTE))
+	}
+	if i.Name != nil {
+		predicates = append(predicates, musclesgroup.NameEQ(*i.Name))
+	}
+	if i.NameNEQ != nil {
+		predicates = append(predicates, musclesgroup.NameNEQ(*i.NameNEQ))
+	}
+	if len(i.NameIn) > 0 {
+		predicates = append(predicates, musclesgroup.NameIn(i.NameIn...))
+	}
+	if len(i.NameNotIn) > 0 {
+		predicates = append(predicates, musclesgroup.NameNotIn(i.NameNotIn...))
+	}
+	if i.NameGT != nil {
+		predicates = append(predicates, musclesgroup.NameGT(*i.NameGT))
+	}
+	if i.NameGTE != nil {
+		predicates = append(predicates, musclesgroup.NameGTE(*i.NameGTE))
+	}
+	if i.NameLT != nil {
+		predicates = append(predicates, musclesgroup.NameLT(*i.NameLT))
+	}
+	if i.NameLTE != nil {
+		predicates = append(predicates, musclesgroup.NameLTE(*i.NameLTE))
+	}
+	if i.NameContains != nil {
+		predicates = append(predicates, musclesgroup.NameContains(*i.NameContains))
+	}
+	if i.NameHasPrefix != nil {
+		predicates = append(predicates, musclesgroup.NameHasPrefix(*i.NameHasPrefix))
+	}
+	if i.NameHasSuffix != nil {
+		predicates = append(predicates, musclesgroup.NameHasSuffix(*i.NameHasSuffix))
+	}
+	if i.NameEqualFold != nil {
+		predicates = append(predicates, musclesgroup.NameEqualFold(*i.NameEqualFold))
+	}
+	if i.NameContainsFold != nil {
+		predicates = append(predicates, musclesgroup.NameContainsFold(*i.NameContainsFold))
+	}
+	if i.Image != nil {
+		predicates = append(predicates, musclesgroup.ImageEQ(*i.Image))
+	}
+	if i.ImageNEQ != nil {
+		predicates = append(predicates, musclesgroup.ImageNEQ(*i.ImageNEQ))
+	}
+	if len(i.ImageIn) > 0 {
+		predicates = append(predicates, musclesgroup.ImageIn(i.ImageIn...))
+	}
+	if len(i.ImageNotIn) > 0 {
+		predicates = append(predicates, musclesgroup.ImageNotIn(i.ImageNotIn...))
+	}
+	if i.ImageGT != nil {
+		predicates = append(predicates, musclesgroup.ImageGT(*i.ImageGT))
+	}
+	if i.ImageGTE != nil {
+		predicates = append(predicates, musclesgroup.ImageGTE(*i.ImageGTE))
+	}
+	if i.ImageLT != nil {
+		predicates = append(predicates, musclesgroup.ImageLT(*i.ImageLT))
+	}
+	if i.ImageLTE != nil {
+		predicates = append(predicates, musclesgroup.ImageLTE(*i.ImageLTE))
+	}
+	if i.ImageContains != nil {
+		predicates = append(predicates, musclesgroup.ImageContains(*i.ImageContains))
+	}
+	if i.ImageHasPrefix != nil {
+		predicates = append(predicates, musclesgroup.ImageHasPrefix(*i.ImageHasPrefix))
+	}
+	if i.ImageHasSuffix != nil {
+		predicates = append(predicates, musclesgroup.ImageHasSuffix(*i.ImageHasSuffix))
+	}
+	if i.ImageEqualFold != nil {
+		predicates = append(predicates, musclesgroup.ImageEqualFold(*i.ImageEqualFold))
+	}
+	if i.ImageContainsFold != nil {
+		predicates = append(predicates, musclesgroup.ImageContainsFold(*i.ImageContainsFold))
+	}
+
+	if i.HasExercises != nil {
+		p := musclesgroup.HasExercises()
+		if !*i.HasExercises {
+			p = musclesgroup.Not(p)
+		}
+		predicates = append(predicates, p)
+	}
+	if len(i.HasExercisesWith) > 0 {
+		with := make([]predicate.Exercise, 0, len(i.HasExercisesWith))
+		for _, w := range i.HasExercisesWith {
+			p, err := w.P()
+			if err != nil {
+				return nil, fmt.Errorf("%w: field 'HasExercisesWith'", err)
+			}
+			with = append(with, p)
+		}
+		predicates = append(predicates, musclesgroup.HasExercisesWith(with...))
+	}
+	switch len(predicates) {
+	case 0:
+		return nil, ErrEmptyMusclesGroupWhereInput
+	case 1:
+		return predicates[0], nil
+	default:
+		return musclesgroup.And(predicates...), nil
+	}
+}
 
 // TodoWhereInput represents a where input for filtering Todo queries.
 type TodoWhereInput struct {
@@ -18,14 +599,14 @@ type TodoWhereInput struct {
 	And        []*TodoWhereInput `json:"and,omitempty"`
 
 	// "id" field predicates.
-	ID      *int  `json:"id,omitempty"`
-	IDNEQ   *int  `json:"idNEQ,omitempty"`
-	IDIn    []int `json:"idIn,omitempty"`
-	IDNotIn []int `json:"idNotIn,omitempty"`
-	IDGT    *int  `json:"idGT,omitempty"`
-	IDGTE   *int  `json:"idGTE,omitempty"`
-	IDLT    *int  `json:"idLT,omitempty"`
-	IDLTE   *int  `json:"idLTE,omitempty"`
+	ID      *pksuid.ID  `json:"id,omitempty"`
+	IDNEQ   *pksuid.ID  `json:"idNEQ,omitempty"`
+	IDIn    []pksuid.ID `json:"idIn,omitempty"`
+	IDNotIn []pksuid.ID `json:"idNotIn,omitempty"`
+	IDGT    *pksuid.ID  `json:"idGT,omitempty"`
+	IDGTE   *pksuid.ID  `json:"idGTE,omitempty"`
+	IDLT    *pksuid.ID  `json:"idLT,omitempty"`
+	IDLTE   *pksuid.ID  `json:"idLTE,omitempty"`
 
 	// "text" field predicates.
 	Text             *string  `json:"text,omitempty"`

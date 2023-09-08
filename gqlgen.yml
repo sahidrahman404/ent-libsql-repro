@@ -16,14 +16,13 @@ resolver:
 # provided package. If they match it will use them, otherwise it will generate new.
 autobind:
   - todo/ent
-  - todo/ent/todo
 
 # This section declares type mapping between the GraphQL and Go type systems.
 models:
   # Defines the ID field as Go 'int'.
   ID:
     model:
-      - github.com/99designs/gqlgen/graphql.IntID
+      - todo/ent/schema/pksuid.ID
   Node:
     model:
       - todo/ent.Noder

@@ -4,7 +4,10 @@ package ent
 
 import (
 	"time"
+	"todo/ent/exercise"
+	"todo/ent/musclesgroup"
 	"todo/ent/schema"
+	"todo/ent/schema/pksuid"
 	"todo/ent/todo"
 )
 
@@ -12,6 +15,27 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	exerciseMixin := schema.Exercise{}.Mixin()
+	exerciseMixinFields0 := exerciseMixin[0].Fields()
+	_ = exerciseMixinFields0
+	exerciseFields := schema.Exercise{}.Fields()
+	_ = exerciseFields
+	// exerciseDescID is the schema descriptor for id field.
+	exerciseDescID := exerciseMixinFields0[0].Descriptor()
+	// exercise.DefaultID holds the default value on creation for the id field.
+	exercise.DefaultID = exerciseDescID.Default.(func() pksuid.ID)
+	musclesgroupMixin := schema.MusclesGroup{}.Mixin()
+	musclesgroupMixinFields0 := musclesgroupMixin[0].Fields()
+	_ = musclesgroupMixinFields0
+	musclesgroupFields := schema.MusclesGroup{}.Fields()
+	_ = musclesgroupFields
+	// musclesgroupDescID is the schema descriptor for id field.
+	musclesgroupDescID := musclesgroupMixinFields0[0].Descriptor()
+	// musclesgroup.DefaultID holds the default value on creation for the id field.
+	musclesgroup.DefaultID = musclesgroupDescID.Default.(func() pksuid.ID)
+	todoMixin := schema.Todo{}.Mixin()
+	todoMixinFields0 := todoMixin[0].Fields()
+	_ = todoMixinFields0
 	todoFields := schema.Todo{}.Fields()
 	_ = todoFields
 	// todoDescText is the schema descriptor for text field.
@@ -26,4 +50,8 @@ func init() {
 	todoDescPriority := todoFields[3].Descriptor()
 	// todo.DefaultPriority holds the default value on creation for the priority field.
 	todo.DefaultPriority = todoDescPriority.Default.(int)
+	// todoDescID is the schema descriptor for id field.
+	todoDescID := todoMixinFields0[0].Descriptor()
+	// todo.DefaultID holds the default value on creation for the id field.
+	todo.DefaultID = todoDescID.Default.(func() pksuid.ID)
 }

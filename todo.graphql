@@ -1,4 +1,6 @@
 type Mutation {
     createTodo(input: CreateTodoInput!): Todo!
     updateTodo(id: ID!, input: UpdateTodoInput!): Todo!
+    createMusclesGroup(input: CreateMusclesGroupInput!): MusclesGroup!
+    createExercise(input: CreateExerciseInput!): Exercise!
 }

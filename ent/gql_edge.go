@@ -8,12 +8,67 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 )
 
-func (t *Todo) Children(ctx context.Context) ([]*Todo, error) {
-	result, err := t.NamedChildren(graphql.GetFieldContext(ctx).Field.Alias)
-	if IsNotLoaded(err) {
-		result, err = t.QueryChildren().All(ctx)
+func (e *Exercise) MusclesGroups(
+	ctx context.Context, after *Cursor, first *int, before *Cursor, last *int, orderBy *MusclesGroupOrder, where *MusclesGroupWhereInput,
+) (*MusclesGroupConnection, error) {
+	opts := []MusclesGroupPaginateOption{
+		WithMusclesGroupOrder(orderBy),
+		WithMusclesGroupFilter(where.Filter),
 	}
-	return result, err
+	alias := graphql.GetFieldContext(ctx).Field.Alias
+	totalCount, hasTotalCount := e.Edges.totalCount[0][alias]
+	if nodes, err := e.NamedMusclesGroups(alias); err == nil || hasTotalCount {
+		pager, err := newMusclesGroupPager(opts, last != nil)
+		if err != nil {
+			return nil, err
+		}
+		conn := &MusclesGroupConnection{Edges: []*MusclesGroupEdge{}, TotalCount: totalCount}
+		conn.build(nodes, pager, after, first, before, last)
+		return conn, nil
+	}
+	return e.QueryMusclesGroups().Paginate(ctx, after, first, before, last, opts...)
+}
+
+func (mg *MusclesGroup) Exercises(
+	ctx context.Context, after *Cursor, first *int, before *Cursor, last *int, orderBy *ExerciseOrder, where *ExerciseWhereInput,
+) (*ExerciseConnection, error) {
+	opts := []ExercisePaginateOption{
+		WithExerciseOrder(orderBy),
+		WithExerciseFilter(where.Filter),
+	}
+	alias := graphql.GetFieldContext(ctx).Field.Alias
+	totalCount, hasTotalCount := mg.Edges.totalCount[0][alias]
+	if nodes, err := mg.NamedExercises(alias); err == nil || hasTotalCount {
+		pager, err := newExercisePager(opts, last != nil)
+		if err != nil {
+			return nil, err
+		}
+		conn := &ExerciseConnection{Edges: []*ExerciseEdge{}, TotalCount: totalCount}
+		conn.build(nodes, pager, after, first, before, last)
+		return conn, nil
+	}
+	return mg.QueryExercises().Paginate(ctx, after, first, before, last, opts...)
+}
+
+func (t *Todo) Children(
+	ctx context.Context, after *Cursor, first *int, before *Cursor, last *int, orderBy *TodoOrder, where *TodoWhereInput,
+) (*TodoConnection, error) {
+	opts := []TodoPaginateOption{
+		WithTodoOrder(orderBy),
+		WithTodoFilter(where.Filter),
+	}
+	alias := graphql.GetFieldContext(ctx).Field.Alias
+	totalCount, hasTotalCount := t.Edges.totalCount[0][alias]
+	if nodes, err := t.NamedChildren(alias); err == nil || hasTotalCount {
+		pager, err := newTodoPager(opts, last != nil)
+		if err != nil {
+			return nil, err
+		}
+		conn := &TodoConnection{Edges: []*TodoEdge{}, TotalCount: totalCount}
+		conn.build(nodes, pager, after, first, before, last)
+		return conn, nil
+	}
+	return t.QueryChildren().Paginate(ctx, after, first, before, last, opts...)
 }
 
 func (t *Todo) Parent(ctx context.Context) (*Todo, error) {

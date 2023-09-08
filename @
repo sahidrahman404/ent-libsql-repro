@@ -543,7 +543,13 @@ func querierAll[V Value, Q interface {
 		if !ok {
 			return nil, fmt.Errorf("unexpected query type %T", q)
 		}
-		return query.sqlAll(ctx)
+		mek, err := query.sqlAll(ctx)
+		if err != nil{
+			fmt.Println("err", err)
+			return nil, err
+		}
+		fmt.Println("mek", mek)
+		return mek, nil
 	})
 }
 
@@ -563,6 +569,7 @@ func withInterceptors[V Value](ctx context.Context, q Query, qr Querier, inters 
 	for i := len(inters) - 1; i >= 0; i-- {
 		qr = inters[i].Intercept(qr)
 	}
+	fmt.Println("2")
 	rv, err := qr.Query(ctx, q)
 	if err != nil {
 		return v, err

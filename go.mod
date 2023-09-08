@@ -1,42 +1,52 @@
 module todo
 
-go 1.19
+go 1.21
+
+toolchain go1.21.0
 
 require (
-	entgo.io/contrib v0.3.3-0.20220908111215-d7359c9f3866
-	entgo.io/ent v0.11.3-0.20220907191106-dc44b9f6febc
-	github.com/99designs/gqlgen v0.17.16
-	github.com/alecthomas/kong v0.2.16
+	entgo.io/contrib v0.4.5
+	entgo.io/ent v0.12.3
+	github.com/99designs/gqlgen v0.17.36
+	github.com/alecthomas/kong v0.8.0
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/mattn/go-sqlite3 v1.14.15
-	github.com/pkg/errors v0.9.1 // indirect
-	github.com/vektah/gqlparser/v2 v2.5.0
-	github.com/vmihailenco/msgpack/v5 v5.2.0
-	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
-	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f // indirect
+	github.com/mattn/go-sqlite3 v1.14.17
+	github.com/vektah/gqlparser/v2 v2.5.8
+	github.com/vmihailenco/msgpack/v5 v5.3.5 // indirect
+	golang.org/x/sys v0.12.0 // indirect
 )
 
 require (
-	ariga.io/atlas v0.6.5-0.20220907173155-3332f3c1b8c9 // indirect
-	github.com/agext/levenshtein v1.2.1 // indirect
+	github.com/libsql/libsql-client-go v0.0.0-20230906132309-42289d60a030
+	github.com/segmentio/ksuid v1.0.4
+)
+
+require (
+	ariga.io/atlas v0.14.0 // indirect
+	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/agnivade/levenshtein v1.1.1 // indirect
-	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
+	github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230512164433-5d1fd1a340c9 // indirect
+	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/go-openapi/inflect v0.19.0 // indirect
-	github.com/google/go-cmp v0.5.6 // indirect
-	github.com/google/uuid v1.3.0 // indirect
+	github.com/google/go-cmp v0.5.9 // indirect
+	github.com/google/uuid v1.3.1 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
-	github.com/hashicorp/golang-lru v0.5.4 // indirect
-	github.com/hashicorp/hcl/v2 v2.13.0 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.6 // indirect
+	github.com/hashicorp/hcl/v2 v2.18.0 // indirect
+	github.com/klauspost/compress v1.15.15 // indirect
+	github.com/libsql/sqlite-antlr4-parser v0.0.0-20230802215326-5cb5bb604475 // indirect
 	github.com/logrusorgru/aurora/v3 v3.0.0 // indirect
-	github.com/mattn/go-colorable v0.1.12 // indirect
-	github.com/mattn/go-isatty v0.0.14 // indirect
-	github.com/mitchellh/go-wordwrap v0.0.0-20150314170334-ad45545899c7 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-isatty v0.0.19 // indirect
+	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
-	github.com/zclconf/go-cty v1.8.0 // indirect
-	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
-	golang.org/x/text v0.3.7 // indirect
-	golang.org/x/tools v0.1.13-0.20220819182638-587a15310bdd // indirect
+	github.com/zclconf/go-cty v1.14.0 // indirect
+	golang.org/x/exp v0.0.0-20230905200255-921286631fa9 // indirect
+	golang.org/x/mod v0.12.0 // indirect
+	golang.org/x/text v0.13.0 // indirect
+	golang.org/x/tools v0.13.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	nhooyr.io/websocket v1.8.7 // indirect
 )
